@@ -1,4 +1,6 @@
 // secure_mavlink.cpp - Comunicação MAVLink com criptografia HMAC
+#ifndef SECURE_MAVLINK_H
+#define SECURE_MAVLINK_H
 #include <Arduino.h>
 #include <MAVLink.h>
 #include <mbedtls/sha256.h>
