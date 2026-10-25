@@ -13,7 +13,7 @@ set(SOURCES
     src/sensor_driver.c
     src/crypto_engine.cpp
     src/governance_client.cpp
-    src/assembly_opt.S  # Nota: No ESP-IDF, usamos .S (maiúsculo) para Assembly com pré-processador C
+    src/assembly_opt.S  # Nota: No ESP-IDF, ( .S  )
 )
 
 # Registra o componente principal
