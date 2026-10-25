@@ -7,7 +7,11 @@
 #include "sensor_driver.h"
 #include "crypto.h"
 
-// Configurações de rede
+void processGovernanceProposal(DynamicJsonDocument& doc);
+void processConfigCommand(DynamicJsonDocument& doc);
+void publishDeviceStatus(const char* status);
+void publishVote(const char* proposalId, int vote);
+
 const char* WIFI_SSID = CONFIG_WIFI_SSID;
 const char* WIFI_PASSWORD = CONFIG_WIFI_PASSWORD;
 const char* MQTT_BROKER = CONFIG_MQTT_BROKER;
@@ -16,38 +20,35 @@ const char* MQTT_USER = CONFIG_MQTT_USER;
 const char* MQTT_PASS = CONFIG_MQTT_PASS;
 const char* DEVICE_ID = CONFIG_DEVICE_ID;
 
-// Clientes
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-// Variáveis globais
 unsigned long lastTelemetry = 0;
 unsigned long lastGovernanceCheck = 0;
-bool isVoting = false;
-String currentProposalId = "";
-int currentVote = -1; // -1: não votou, 0: opção X, 1: opção Y
+unsigned long lastStatus = 0;
 
-// Callback para mensagens MQTT
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    String message;
-    for (unsigned int i = 0; i < length; i++) {
-        message += (char)payload[i];
+    DynamicJsonDocument doc(512);
+    DeserializationError error = deserializeJson(doc, payload, length);
+    
+    if (error) {
+        Serial.printf("Erro ao parsear MQTT: %s\n", error.c_str());
+        return;
     }
     
-    Serial.printf("Mensagem recebida [%s]: %s\n", topic, message.c_str());
+    Serial.printf("Mensagem recebida no tópico: %s\n", topic);
     
-    // Processar proposta de governança
-    if (String(topic) == "governance/proposals") {
-        processGovernanceProposal(message);
-    }
-    
-    // Processar comando de configuração
-    if (String(topic) == String("devices/") + DEVICE_ID + "/config") {
-        processConfigCommand(message);
+    if (strcmp(topic, "governance/proposals") == 0) {
+        processGovernanceProposal(doc);
+    } else {
+        char expectedTopic[64];
+        snprintf(expectedTopic, sizeof(expectedTopic), "devices/%s/config", DEVICE_ID);
+        if (strcmp(topic, expectedTopic) == 0) {
+            processConfigCommand(doc);
+        }
     }
 }
 
-// Conectar ao WiFi
 void connectWiFi() {
     Serial.printf("Conectando ao WiFi: %s\n", WIFI_SSID);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -71,13 +72,17 @@ void connectMQTT() {
     while (!mqttClient.connected()) {
         Serial.print("Conectando ao MQTT...");
         
-        String clientId = String("device-") + DEVICE_ID;
+        char clientId[64];
+        snprintf(clientId, sizeof(clientId), "device-%s", DEVICE_ID);
         
-        if (mqttClient.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
+        if (mqttClient.connect(clientId, MQTT_USER, MQTT_PASS)) {
             Serial.println("conectado!");
             
             mqttClient.subscribe("governance/proposals");
-            mqttClient.subscribe(String("devices/") + DEVICE_ID + "/config");
+            
+            char configTopic[64];
+            snprintf(configTopic, sizeof(configTopic), "devices/%s/config", DEVICE_ID);
+            mqttClient.subscribe(configTopic);
             
             publishDeviceStatus("online");
         } else {
@@ -90,127 +95,108 @@ void connectMQTT() {
 void publishTelemetry() {
     sensor_data_t data = read_sensor_data();
     
+    char jsonBuffer[512];
+    char finalBuffer[600];
+    char topic[64];
     StaticJsonDocument<512> doc;
+    
     doc["deviceId"] = DEVICE_ID;
     doc["timestamp"] = millis();
     doc["power"] = data.power;
     doc["voltage"] = data.voltage;
     doc["current"] = data.current;
     doc["temperature"] = data.temperature;
-    doc["status"] = data.status == SENSOR_OK ? "normal" : "warning";
+    doc["status"] = (data.status == SENSOR_OK) ? "normal" : "warning";
     
-    // HMAC-SHA256
-    String payload;
-    serializeJson(doc, payload);
-    String signature = calculateHMAC(payload.c_str(), CONFIG_HMAC_SECRET);
+    serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
     
-    doc["signature"] = signature;
+    String signature = calculateHMAC(jsonBuffer, CONFIG_HMAC_SECRET);
+    doc["signature"] = signature.c_str();
     
-    String finalPayload;
-    serializeJson(doc, finalPayload);
+    serializeJson(doc, finalBuffer, sizeof(finalBuffer));
     
-    String topic = String("telemetry/") + DEVICE_ID;
-    mqttClient.publish(topic.c_str(), finalPayload.c_str());
+    snprintf(topic, sizeof(topic), "telemetry/%s", DEVICE_ID);
+    mqttClient.publish(topic, finalBuffer);
     
-    Serial.printf("Telemetria publicada: %.2f kW, %.1f V, %.2f A, %.1f °C\n",
-                  data.power, data.voltage, data.current, data.temperature);
+    Serial.printf("Telemetria publicada: %.2f kW, %.1f V, %.2f A, %.1f °C | Assinatura: %s\n",
+                  data.power, data.voltage, data.current, data.temperature, signature.c_str());
 }
 
-void processGovernanceProposal(String message) {
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, message);
-    
-    if (error) {
-        Serial.printf("Erro ao parsear proposta: %s\n", error.c_str());
-        return;
-    }
-    
-    String proposalId = doc["id"];
-    String description = doc["description"];
-    String optionX = doc["optionX"];
-    String optionY = doc["optionY"];
-    unsigned long expiresAt = doc["expiresAt"];
+void processGovernanceProposal(DynamicJsonDocument& doc) {
+    const char* proposalId = doc["id"] | "unknown";
+    const char* description = doc["description"] | "";
+    const char* optionX = doc["optionX"] | "";
+    const char* optionY = doc["optionY"] | "";
+    unsigned long expiresAt = doc["expiresAt"] | 0;
     
     Serial.printf("\n=== PROPOSTA DE GOVERNANÇA ===\n");
-    Serial.printf("ID: %s\n", proposalId.c_str());
-    Serial.printf("Descrição: %s\n", description.c_str());
-    Serial.printf("Opção X: %s\n", optionX.c_str());
-    Serial.printf("Opção Y: %s\n", optionY.c_str());
+    Serial.printf("ID: %s\n", proposalId);
+    Serial.printf("Descrição: %s\n", description);
+    Serial.printf("Opção X: %s | Opção Y: %s\n", optionX, optionY);
     Serial.printf("Expira em: %lu ms\n", expiresAt);
     
     sensor_data_t data = read_sensor_data();
     
-    int vote;
-    if (data.temperature > 35.0) {
-        vote = 1;
-        Serial.println("Decisão: Votar Y (temperatura alta)");
-    } else {
-        vote = 0;
-        Serial.println("Decisão: Votar X (temperatura normal)");
-    }
+    int vote = (data.temperature > 35.0) ? 1 : 0;
+    Serial.println(vote == 1 ? "Decisão: Votar Y (temperatura alta)" : "Decisão: Votar X (temperatura normal)");
     
     publishVote(proposalId, vote);
 }
 
-void publishVote(String proposalId, int vote) {
+void publishVote(const char* proposalId, int vote) {
+    char jsonBuffer[256];
+    char finalBuffer[300];
     StaticJsonDocument<256> doc;
+    
     doc["proposalId"] = proposalId;
     doc["deviceId"] = DEVICE_ID;
-    doc["vote"] = vote; // 0: X, 1: Y
+    doc["vote"] = vote;
     doc["timestamp"] = millis();
     
-    String payload;
-    serializeJson(doc, payload);
+    serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
     
-    String signature = calculateHMAC(payload.c_str(), CONFIG_HMAC_SECRET);
-    doc["signature"] = signature;
+    String signature = calculateHMAC(jsonBuffer, CONFIG_HMAC_SECRET);
+    doc["signature"] = signature.c_str();
     
-    String finalPayload;
-    serializeJson(doc, finalPayload);
+    serializeJson(doc, finalBuffer, sizeof(finalBuffer));
     
-    mqttClient.publish("governance/votes", finalPayload.c_str());
+    mqttClient.publish("governance/votes", finalBuffer);
     
-    Serial.printf("Voto publicado: Proposta %s, Voto: %s\n", 
-                  proposalId.c_str(), vote == 0 ? "X" : "Y");
+    Serial.printf("Voto publicado: Proposta %s, Voto: %s\n", proposalId, vote == 0 ? "X" : "Y");
 }
 
-void processConfigCommand(String message) {
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, message);
+void processConfigCommand(DynamicJsonDocument& doc) {
+    const char* command = doc["command"] | "";
     
-    if (error) {
-        Serial.printf("Erro ao parsear comando: %s\n", error.c_str());
-        return;
-    }
-    
-    String command = doc["command"];
-    
-    if (command == "set_sampling_rate") {
-        int rate = doc["value"];
+    if (strcmp(command, "set_sampling_rate") == 0) {
+        int rate = doc["value"] | 100;
         set_sensor_sampling_rate(rate);
         Serial.printf("Taxa de amostragem alterada para: %d ms\n", rate);
-    } else if (command == "calibrate") {
+    } else if (strcmp(command, "calibrate") == 0) {
         calibrate_sensor();
         Serial.println("Sensor calibrado");
-    } else if (command == "restart") {
+    } else if (strcmp(command, "restart") == 0) {
         Serial.println("Reiniciando dispositivo...");
         delay(1000);
         ESP.restart();
     }
 }
 
-void publishDeviceStatus(String status) {
+void publishDeviceStatus(const char* status) {
+    char jsonBuffer[256];
+    char topic[64];
     StaticJsonDocument<256> doc;
+    
     doc["deviceId"] = DEVICE_ID;
     doc["status"] = status;
     doc["uptime"] = millis();
     doc["wifiRSSI"] = WiFi.RSSI();
     doc["freeHeap"] = ESP.getFreeHeap();
     
-    String payload;
-    serializeJson(doc, payload);
+    serializeJson(doc, jsonBuffer, sizeof(jsonBuffer));
     
-    mqttClient.publish(String("devices/") + DEVICE_ID + "/status", payload.c_str());
+    snprintf(topic, sizeof(topic), "devices/%s/status", DEVICE_ID);
+    mqttClient.publish(topic, jsonBuffer);
 }
 
 void setup() {
@@ -219,9 +205,9 @@ void setup() {
     
     Serial.println("\n=== IoT Energy Monitor Device ===");
     Serial.printf("Device ID: %s\n", DEVICE_ID);
+    Serial.printf("Free Heap inicial: %u bytes\n", ESP.getFreeHeap());
     
     init_sensor();
-    
     connectWiFi();
     
     mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
@@ -239,23 +225,20 @@ void loop() {
     }
     mqttClient.loop();
     
-    // Publicar telemetria a cada 2 segundos
-    if (millis() - lastTelemetry >= 2000) {
+    unsigned long currentMillis = millis();
+    
+    if (currentMillis - lastTelemetry >= 2000) {
         publishTelemetry();
-        lastTelemetry = millis();
+        lastTelemetry = currentMillis;
     }
     
-    // Verificar governança a cada 5 segundos
-    if (millis() - lastGovernanceCheck >= 5000) {
-        // Lógica de verificação de propostas ativas
-        lastGovernanceCheck = millis();
+    if (currentMillis - lastGovernanceCheck >= 5000) {
+        lastGovernanceCheck = currentMillis;
     }
     
-    // Publicar status a cada 3 segundos
-    static unsigned long lastStatus = 0;
-    if (millis() - lastStatus >= 3000) {
+    if (currentMillis - lastStatus >= 30000) {
         publishDeviceStatus("online");
-        lastStatus = millis();
+        lastStatus = currentMillis;
     }
     
     delay(10);
