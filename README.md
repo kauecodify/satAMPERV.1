@@ -132,7 +132,7 @@ satAMPERV.1/
 
 ## 开源协议
 
-本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 协议开源。详情请参阅 `LICENSE` 文件。
+本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 协议开源。详情请参阅 `LICENSE` 文件
 
 ## 技术参考
 
