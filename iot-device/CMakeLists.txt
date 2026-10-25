@@ -1,10 +1,23 @@
 # componente firmware
+
 idf_component_register(
-    SRCS 
-        "src/main.cpp"
-        "src/sensor_driver.c"
-        "src/crypto_engine.cpp"
-        "src/assembly_opt.S"
+    SRCS "src/main.cpp" 
+         "src/sensor_driver.c" 
+         "src/crypto_engine.cpp" 
+         "src/assembly_opt.S"
+         "src/comm_manager.cpp"
+         "src/swarm_driver.cpp"
+         "src/payload_codec.cpp"
+         # "src/lora_driver.cpp" # Descomente se usar LoRaWAN
     INCLUDE_DIRS "include"
-    REQUIRES esp_wifi nvs_flash esp_netif esp_mqtt mbedtls json driver
+    REQUIRES 
+        driver 
+        esp_timer 
+        nvs_flash 
+        mbedtls 
+        json
+        # TinyCBOR já faz parte do núcleo do ESP-IDF, mas garantimos a dependência:
+        esp_ringbuf
+        # Para LoRaWAN (se usado), adicione:
+        # RadioLib
 )
