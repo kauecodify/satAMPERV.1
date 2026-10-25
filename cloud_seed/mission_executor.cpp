@@ -2,6 +2,11 @@
 #include "mission_executor.h"
 #include "config_drone.h"
 #include "esp_log.h"
+#include "mission_executor.h"
+
+MissionExecutor::MissionExecutor(MissionPlanner* p) {}
+void MissionExecutor::update(float, float, float, float) {}
+mission_state_t MissionExecutor::getState() { return STATE_IDLE; }
 
 static const char *TAG = "MISSION_EXECUTOR";
 
