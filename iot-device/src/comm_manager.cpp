@@ -1,49 +1,59 @@
 #include "comm_manager.h"
 #include "payload_codec.h"
-#include "crypto.h" // Para o HMAC-SHA256 existente
+#include "swarm_driver.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-// Instâncias globais (inicializadas no main.cpp)
-SwarmDriver swarm(...); 
-// LoraDriver lora(...); // Opcional para fallback terrestre
+static const char* TAG = "CommMgr";
 
-void CommManager::publishTelemetry(const SensorData& sensor_data) {
-    // 1. Preenche a estrutura de telemetria
-    PayloadCodec::Telemetry telemetry;
-    telemetry.voltage = sensor_data.voltage;
-    telemetry.current = sensor_data.current;
-    telemetry.temperature = sensor_data.temperature;
-    telemetry.timestamp = esp_log_timestamp(); // Ou NTP se Wi-Fi disponível
-    
-    // 2. Serializa em CBOR (Payload compacto)
-    uint8_t binary_payload[128]; // Buffer pequeno, pois CBOR é compacto
-    size_t payload_len = PayloadCodec::encodeTelemetry(telemetry, binary_payload, sizeof(binary_payload));
-    if (payload_len == 0) return;
+// Instância global do Swarm (UART1, GPIO 17/16 — ajusta no hardware)
+static SwarmDriver swarm(UART_NUM_1, 17, 16);
 
-    // 3. (Opcional) Assina o payload binário com HMAC-SHA256
-    // O código existente já possui crypto_engine.cpp para isso. [5†L8-L9]
-    // uint8_t signature[32];
-    // crypto_hmac_sha256(binary_payload, payload_len, key, signature);
+void CommManager::begin() {
+    esp_err_t err = swarm.begin();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Swarm M138 não inicializado (Wi-Fi será o único link).");
+    }
+}
 
-    // 4. Lógica de Roteamento de Rede
+void CommManager::publishTelemetry(const SensorData& s) {
+    // 1) Preenche estrutura
+    PayloadCodec::Telemetry t;
+    t.voltage         = s.voltage;
+    t.current         = s.current;
+    t.temperature     = s.temperature;
+    t.timestamp       = (uint32_t)(esp_log_timestamp() / 1000);
+    t.governance_vote = s.governance_vote;
+
+    // 2) Codifica em CBOR (payload compacto)
+    uint8_t payload[128];
+    size_t len = PayloadCodec::encode(t, payload, sizeof(payload));
+    if (len == 0) {
+        ESP_LOGE(TAG, "Falha na codificação CBOR");
+        return;
+    }
+
+    // 3) (Opcional) Assinatura HMAC-SHA256 já existente no crypto_engine.cpp
+    // crypto_hmac_sha256(payload, len, key, signature);
+
+    // 4) Roteamento de rede
     if (wifiIsConnected()) {
-        // Tenta enviar via MQTT (Wi-Fi) - muito mais barato que satélite.
-        // O payload CBOR é publicado em vez da string JSON.
-        mqttPublishBinary("telemetry/device_id", binary_payload, payload_len);
+        mqttPublishBinary("telemetry/device", payload, len);   // Wi-Fi: custo ~zero
+        ESP_LOGI(TAG, "Enviado via Wi-Fi/MQTT (%d bytes CBOR)", (int)len);
     } else {
-        // Fallback: Wi-Fi indisponível, tenta satélite.
-        ESP_LOGW(TAG, "Wi-Fi indisponível. Tentando link satelital...");
-        
-        // O Swarm M138 aceita mensagens de até 160 bytes [1†L11-L12].
-        if (payload_len <= 160) {
-            esp_err_t err = swarm.sendPayload(binary_payload, payload_len);
-            if (err == ESP_OK) {
-                ESP_LOGI(TAG, "Payload CBOR enviado via satélite (%d bytes).", payload_len);
-            } else {
-                ESP_LOGE(TAG, "Falha no envio satelital.");
-                // Aqui pode entrar o fallback para LoRaWAN (lora.send(...)).
-            }
+        ESP_LOGW(TAG, "Wi-Fi indisponível. Fallback satelital (Swarm M138)...");
+
+        if (len > 160) {
+            ESP_LOGE(TAG, "Payload %d > 160 bytes: impossível enviar via Swarm", (int)len);
+            return;
+        }
+
+        esp_err_t err = swarm.sendPayload(payload, len);
+        if (err == ESP_OK) {
+            ESP_LOGI(TAG, "Payload CBOR enfileirado no Swarm (%d bytes)", (int)len);
         } else {
-            ESP_LOGE(TAG, "Payload muito grande para o limite de 160 bytes do satélite.");
+            ESP_LOGE(TAG, "Falha no envio satelital");
         }
     }
 }
