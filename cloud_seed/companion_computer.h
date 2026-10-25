@@ -4,6 +4,12 @@
 #include "weather_sensor_driver.h"
 #include "secure_mavlink.h"
 
+#ifndef COMPANION_COMPUTER_H
+#define COMPANION_COMPUTER_H
+void init_companion_computer();
+void companion_computer_loop();
+#endif
+
 // instâncias globais
 MissionPlanner missionPlanner;
 MissionExecutor missionExecutor(&missionPlanner);
