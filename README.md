@@ -140,4 +140,3 @@ satAMPERV.1/
 - [ArduinoJson 文档 (v6)](https://arduinojson.org/v6/doc/)
 - [RFC 2104: HMAC (Keyed-Hashing for Message Authentication)](https://datatracker.ietf.org/doc/html/rfc2104)
 - [MQTT Version 5.0 规范](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
-- traduzaahíL®
