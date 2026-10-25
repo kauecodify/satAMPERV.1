@@ -1,6 +1,17 @@
 // cloud_seed/mission_executor.h
 #ifndef MISSION_EXECUTOR_H
 #define MISSION_EXECUTOR_H
+#pragma once
+
+#include "mission_planner.h"
+
+typedef enum { STATE_IDLE, STATE_NAVIGATING, STATE_RETURNING_HOME } mission_state_t;
+class MissionExecutor {
+public:
+    MissionExecutor(MissionPlanner* p);
+    void update(float, float, float, float);
+    mission_state_t getState();
+};
 
 #include "mission_planner.h"
 
