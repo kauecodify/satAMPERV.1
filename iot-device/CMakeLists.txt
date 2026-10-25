@@ -18,6 +18,7 @@ idf_component_register(
         json
         # TinyCBOR já faz parte do núcleo do ESP-IDF, mas garantimos a dependência:
         esp_ringbuf
+        espressif/cbor
         # Para LoRaWAN (se usado), adicione:
         # RadioLib
 )
