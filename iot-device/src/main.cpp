@@ -6,6 +6,8 @@
 #include "config.h"
 #include "sensor_driver.h"
 #include "crypto.h"
+#include "comm_manager.h"
+
 
 void processGovernanceProposal(DynamicJsonDocument& doc);
 void processConfigCommand(DynamicJsonDocument& doc);
@@ -242,4 +244,25 @@ void loop() {
     }
     
     delay(10);
+}
+
+CommManager comm;
+
+extern "C" void app_main() {
+    // ... inicialização existente (NVS, sensores, Wi-Fi, MQTT) ...
+
+    // Inicializa o gerenciador de comunicação (que por sua vez inicializa o Swarm)
+    comm.begin();
+
+    while (true) {
+        // 1. Lê os sensores (código existente em sensor_driver.c) [5†L20-L21]
+        SensorData data = read_sensors();
+
+        // 2. Em vez de montar JSON e publicar no MQTT diretamente,
+        //    delegamos para o CommManager, que fará a codificação CBOR
+        //    e escolherá o melhor link (Wi-Fi ou Satélite).
+        comm.publishTelemetry(data);
+
+        vTaskDelay(pdMS_TO_TICKS(60000)); // Intervalo de amostragem
+    }
 }
