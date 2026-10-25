@@ -1,4 +1,6 @@
 // cloud_seed/companion_computer.h
+#pragma once
+void init_companion_computer();
 #include "mission_planner.h"
 #include "mission_executor.h"
 #include "weather_sensor_driver.h"
