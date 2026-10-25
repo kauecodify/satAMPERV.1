@@ -1,0 +1,20 @@
+# ESP-IDF / CMake
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.defaults
+managed_components/
+
+# PlatformIO (se usar)
+.pio/
+.piolibdeps/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
