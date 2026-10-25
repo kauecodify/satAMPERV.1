@@ -1,6 +1,15 @@
 #ifndef MISSION_PLANNER_H
 #define MISSION_PLANNER_H
 #include <stdint.h>
+#pragma once
+
+struct Waypoint { float lat, lng, alt; bool valid; };
+class MissionPlanner {
+public:
+    Waypoint* getNextWaypoint();
+    bool advanceToNextWaypoint();
+    bool hasReachedWaypoint(float, float, float, float = 5.0);
+};
 
 struct Waypoint { float latitude, longitude, altitude; bool valid; };
 class MissionPlanner {
