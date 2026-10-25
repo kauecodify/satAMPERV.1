@@ -4,19 +4,17 @@
 
 class PayloadCodec {
 public:
-    // Estrutura mínima para telemetria de energia
     struct Telemetry {
-        float voltage;
-        float current;
-        float temperature;
-        uint32_t timestamp;
-        uint8_t governance_vote; // Voto de governança (0=Nulo, 1=Sim, 2=Não)
+        float voltage;          // V
+        float current;          // A
+        float temperature;      // °C
+        uint32_t timestamp;     // Unix epoch (ou uptime ms)
+        uint8_t governance_vote; // 0=nulo, 1=sim, 2=não
     };
 
-    // Codifica a estrutura em um buffer binário CBOR.
-    // Retorna o número de bytes escritos (0 em caso de erro).
-    static size_t encodeTelemetry(const Telemetry& data, uint8_t* out_buffer, size_t max_len);
-    
-    // (Opcional) Decodifica para debug ou recebimento de propostas
-    static bool decodeTelemetry(const uint8_t* buffer, size_t len, Telemetry& out_data);
+    // Retorna o número de bytes escritos (0 em erro)
+    static size_t encode(const Telemetry& data, uint8_t* out, size_t max_len);
+
+    // Decodifica para debug/teste (opcional)
+    static bool decode(const uint8_t* in, size_t len, Telemetry& out);
 };
