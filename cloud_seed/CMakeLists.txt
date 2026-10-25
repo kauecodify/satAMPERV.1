@@ -2,18 +2,9 @@ idf_component_register(
     SRCS 
         "companion_computer.cpp"
         "mission_planner.cpp"
-        "mission_executor.cpp"
         "secure_mavlink.cpp"
+        "mission_executor.cpp"
         "weather_sensor_driver.cpp"
-    INCLUDE_DIRS 
-        "." 
-        "../include"
-    REQUIRES 
-        esp_wifi 
-        mqtt 
-        mbedtls 
-        json 
-        driver
-        nvs_flash
+    INCLUDE_DIRS "."
+    REQUIRES driver mqtt mbedtls json nvs_flash
 )
-target_link_libraries(${COMPONENT_LIB} m) # Linka biblioteca matemática
