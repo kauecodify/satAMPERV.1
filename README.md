@@ -1,142 +1,215 @@
 # satAMPERV.1
 
-基于 ESP32 的卫星物联网能源监控与分布式治理系统
+Firmware embarcado para monitoramento energético remoto via satélite de baixo custo, com governança distribuída em ESP32.
 
-## 项目简介
+## Visao Geral
 
-本项目是一个专为偏远地区能源基础设施监控设计的嵌入式物联网（IoT）固件，运行于 ESP32 微控制器。系统旨在通过卫星链路（如 SGDC 卫星）实现高可靠性的实时遥测，并创新性地引入了“物联网治理”（IoT Governance）机制，允许边缘设备基于本地传感器数据自主参与网络的分布式决策与共识。
+O satAMPERV.1 e um firmware para ESP32 projetado para monitoramento de infraestrutura energética em locais sem conectividade terrestre confiável. O sistema usa Wi-Fi/MQTT como link primário de baixo custo e comunicação satelital via modem Swarm M138 como fallback automático. O objetivo e manter telemetria contínua mesmo em áreas remotas.
 
-项目采用混合语言架构，结合了 C 语言（底层硬件驱动）、C++（网络通信与业务逻辑）以及 Xtensa 汇编（信号滤波优化），并在内存管理上进行了极致优化，确保设备在无人值守环境下长期稳定运行。
+O projeto também implementa o conceito de IoT Governance: os dispositivos não apenas coletam dados, mas participam de decisões distribuídas, emitindo votos assinados com base em condições locais dos sensores.
 
-## 核心特性
+A arquitetura foi otimizada para eficiência energética, integridade de dados e viabilidade comercial. O payload de telemetria usa CBOR (Concise Binary Object Representation) em vez de JSON, reduzindo o tamanho da mensagem e viabilizando o uso econômico de links satelitais.
 
-- **混合语言架构**：C 语言负责高精度传感器数据采集，C++ 处理 MQTT 通信与 JSON 序列化，汇编语言用于底层信号滤波优化。
-- **端到端数据完整性**：所有上传的遥测数据和投票指令均使用 HMAC-SHA256 算法进行数字签名，防止数据在传输过程中被篡改或伪造。
-- **极致内存优化**：彻底摒弃了在循环和回调函数中使用动态分配的 `String` 类。所有 JSON 序列化和主题构建均采用固定大小的栈（Stack）字符数组，有效杜绝了长期运行导致的堆内存碎片化（Heap Fragmentation）问题。
-- **边缘计算与分布式治理**：设备不仅是被动的数据上报者，还能接收来自云端的“治理提案”，并根据本地环境状态（如温度阈值）自主计算并投出加密选票，实现去中心化的设备协同管理。
-- **高可用性设计**：内置完善的 WiFi/MQTT 断线重连机制、看门狗重启逻辑以及远程配置指令（采样率调整、传感器校准、远程重启）支持。
+## Caracteristicas Principais
 
-## 系统架构
+- Comunicação híbrida: Wi-Fi/MQTT como link primário; fallback automático para satélite Swarm M138 quando o Wi-Fi não está disponível.
+- Payload compacto com CBOR: serialização binária que reduz o payload em cerca de 28% em relação ao JSON e mantém a mensagem dentro do limite de 160 bytes do Swarm.
+- Integridade de dados: assinatura HMAC-SHA256 em todas as mensagens de telemetria e votos de governança.
+- Memória otimizada: uso de buffers estáticos e StaticJsonDocument nas rotas críticas; nenhuma alocação dinâmica de String no loop principal.
+- Governança distribuída: dispositivos avaliam propostas localmente e emitem votos criptografados.
+- Alta disponibilidade: reconexão automática de Wi-Fi/MQTT, watchdog de reinício e comandos remotos de configuração.
+- Otimização em assembly: filtros de sinal implementados em assembly Xtensa para desempenho em aquisição de dados.
 
-```text
-[ESP32 边缘设备] 
-   │
-   ├─> 读取传感器 (ADC) 
-   ├─> 构建 JSON 并使用 HMAC-SHA256 签名
-   └─> 通过 MQTT 发布至 `telemetry/{device_id}` 或 `governance/votes`
-         │
-         ▼
-[MQTT Broker (后端)] 
-   │
-   ├─> 验证 HMAC 签名 (拒绝非法或篡改数据)
-   ├─> 持久化存储至 PostgreSQL
-   └─> 通过 WebSocket 广播至前端
-         │
-         ▼
-[Web 监控仪表盘 (React)] 
-   └─> 实时数据可视化与治理提案管理
+## Arquitetura do Sistema
+
+Fluxo resumido:
+
+1. Sensores são lidos pelo sensor_driver (C).
+2. O CommManager codifica a telemetria em CBOR, assina com HMAC-SHA256 e decide o link de envio.
+3. Se o Wi-Fi estiver disponível, o payload é publicado via MQTT no backend.
+4. Se o Wi-Fi não estiver disponível, o payload é enviado ao modem Swarm M138 via UART, que o transmite pela rede satelital.
+
+Diagrama em texto:
+
+```
+ESP32
+  Sensores -> Sensor Driver (C) -> Comm Manager (C++)
+                                      |
+                                      +-> PayloadCodec (CBOR)
+                                      +-> Crypto Engine (HMAC-SHA256)
+                                      |
+                                      +-> Wi-Fi / MQTT (link primario)
+                                      +-> Swarm M138 (fallback satelital)
 ```
 
-## 目录结构
+O backend recebe os dados, valida a assinatura HMAC, decodifica o CBOR e persiste as informações.
 
-```text
+## Estrutura do Projeto
+
+```
 satAMPERV.1/
-│
-├── iot-device/                 # 嵌入式固件源码目录
-│   ├── CMakeLists.txt          # ESP-IDF 构建配置文件
-│   ├── include/                # 头文件目录
-│   │   ├── config.h            # 网络与设备全局配置 (SSID, MQTT, HMAC密钥)
-│   │   ├── sensor_driver.h     # 传感器驱动接口定义
-│   │   └── crypto.h            # 加密与签名函数声明
-│   └── src/                    # 源代码目录
-│       ├── main.cpp            # 主程序入口、任务调度与 MQTT 回调
-│       ├── sensor_driver.c     # 传感器底层读取与校准逻辑 (纯 C)
-│       ├── crypto_engine.cpp   # mbedTLS HMAC-SHA256 实现
-│       └── assembly_opt.S      # Xtensa 汇编信号滤波优化
-│
-├── README.md                   # 项目说明文档
-└── LICENSE                     # AGPL-3.0 开源许可证
+├── README.md
+├── LICENSE
+├── cloud_seed/
+└── iot-device/
+    ├── CMakeLists.txt
+    ├── partitions.csv
+    ├── sdkconfig.defaults
+    ├── include/
+    │   ├── config.h
+    │   ├── sensor_driver.h
+    │   ├── crypto.h
+    │   ├── comm_manager.h
+    │   ├── swarm_driver.h
+    │   └── payload_codec.h
+    └── src/
+        ├── main.cpp
+        ├── sensor_driver.c
+        ├── crypto_engine.cpp
+        ├── assembly_opt.S
+        ├── comm_manager.cpp
+        ├── swarm_driver.cpp
+        └── payload_codec.cpp
 ```
 
-## 环境要求
+## Requisitos de Hardware
 
-### 硬件
-- ESP32 开发板（推荐 ESP32-WROOM-32 或同等型号）
-- USB 数据线（用于烧录与串口监控）
+- MCU: ESP32-WROOM-32 ou equivalente.
+- Modem satelital: Swarm M138, interface UART 3,3 V CMOS, 115200 baud, 8N1.
+- Antena: antena Swarm para 137–138 MHz (downlink) e 148–150 MHz (uplink).
+- Alimentação: 3,3 V. Consumo do modem: cerca de 80 uA em sleep, 26 mA típico em recepção e 850 mA de pico em transmissão.
+- Interface: UART entre ESP32 e M138, com pinos configuráveis no comm_manager.cpp.
 
-### 软件
-- **选项 A (推荐)**: PlatformIO (基于 VS Code) + Arduino Core for ESP32
-- **选项 B**: ESP-IDF v5.1 或更高版本 + Python 3.8+
-- CMake 3.16+
+O Swarm M138 oferece taxa de dados de aproximadamente 1 kbps e suporta mensagens de até 160 bytes de payload binário. O CBOR mantém a telemetria típica em cerca de 30 a 50 bytes.
 
-## 安装与编译
+## Requisitos de Software
 
-### 使用 PlatformIO
-1. 在 VS Code 中打开 `iot-device` 文件夹。
-2. 确保 `platformio.ini` 已正确配置目标平台。
-3. 点击底部状态栏的 **Build** (编译) 按钮，或运行：
-   ```bash
-   pio run
-   ```
-4. 编译成功后，点击 **Upload and Monitor** (烧录并监控)，或运行：
-   ```bash
-   pio run --target upload
-   pio device monitor
-   ```
+- ESP-IDF v5.1 ou superior.
+- Python 3.8 ou superior.
+- CMake 3.16 ou superior.
+- Componente CBOR: espressif/cbor (TinyCBOR), instalável via Component Registry.
 
-### 使用原生 ESP-IDF
-1. 打开 ESP-IDF 命令行终端，导航至 `iot-device` 目录。
-2. 设置目标芯片并编译：
-   ```bash
-   idf.py set-target esp32
-   idf.py build
-   ```
-3. 烧录固件并打开串口监控（请将 `/dev/ttyUSB0` 替换为您的实际串口）：
-   ```bash
-   idf.py -p /dev/ttyUSB0 flash monitor
-   ```
+O CBOR não faz parte do núcleo do ESP-IDF desde a versão 5.0. É necessário instalá-lo separadamente antes da compilação.
 
-## 配置说明
+## Instalação e Compilação
 
-在编译前，请修改 `include/config.h` 文件以匹配您的实际网络环境和后端服务：
+1. Clonar o repositório:
+
+```bash
+git clone https://github.com/kauecodify/satAMPERV.1.git
+cd satAMPERV.1/iot-device
+```
+
+2. Instalar a dependência CBOR:
+
+```bash
+idf.py add-dependency "espressif/cbor^0.6.0~1"
+```
+
+Esse comando cria ou atualiza o idf_component.yml e baixa o TinyCBOR do Component Registry.
+
+3. Configurar o alvo e compilar:
+
+```bash
+idf.py set-target esp32
+idf.py build
+```
+
+4. Gravar e monitorar:
+
+```bash
+idf.py -p /dev/ttyUSB0 flash monitor
+```
+
+Substitua /dev/ttyUSB0 pela porta serial correspondente ao sistema.
+
+## Configuração
+
+Antes da compilação, edite include/config.h com os parâmetros da rede e do backend:
 
 ```c
-// 网络配置
-#define CONFIG_WIFI_SSID "您的WiFi名称"
-#define CONFIG_WIFI_PASSWORD "您的WiFi密码"
+#define CONFIG_WIFI_SSID      "sua_rede"
+#define CONFIG_WIFI_PASSWORD  "sua_senha"
 
-// MQTT 代理配置
-#define CONFIG_MQTT_BROKER "192.168.1.100"  // 后端服务器 IP 或域名
-#define CONFIG_MQTT_PORT 1883
-#define CONFIG_MQTT_USER "device_user"
-#define CONFIG_MQTT_PASS "device_password"
+#define CONFIG_MQTT_BROKER    "192.168.1.100"
+#define CONFIG_MQTT_PORT      1883
+#define CONFIG_MQTT_USER      "device_user"
+#define CONFIG_MQTT_PASS      "device_password"
 
-// 设备标识与安全
-#define CONFIG_DEVICE_ID "DEV-AM-001"
-#define CONFIG_HMAC_SECRET "您的高强度共享密钥" // 必须与后端保持一致
+#define CONFIG_DEVICE_ID      "DEV-AM-001"
+#define CONFIG_HMAC_SECRET    "sua_chave_secreta_forte"
 ```
 
-## 安全与最佳实践
+Os pinos UART do Swarm M138 são definidos no comm_manager.cpp:
 
-1. **内存安全**：本项目已针对 `publishTelemetry`、`publishVote` 等高频调用函数进行了栈内存优化。在扩展功能时，请继续保持使用固定大小的 `char` 数组和 `StaticJsonDocument`，避免在 `loop()` 中使用动态内存分配。
-2. **密钥管理**：`CONFIG_HMAC_SECRET` 切勿提交至公共代码仓库。在生产环境中，建议使用 ESP-IDF 的 NVS (Non-Volatile Storage) 或安全启动机制来动态加载密钥。
-3. **传输加密**：当前示例使用明文 MQTT (端口 1883)。在部署至真实卫星或公共网络环境时，强烈建议启用 MQTT over TLS (端口 8883) 并配置双向证书认证 (mTLS)。
+```cpp
+static SwarmDriver swarm(UART_NUM_1, 17, 16);
+```
 
-## 物联网治理机制说明
+O driver usa o protocolo NMEA/AT do Swarm, com comandos como $CS (check status), $TD (transmit data) e $MT C=U (message count).
 
-系统实现了一种轻量级的分布式共识协议：
-1. 云端管理员创建包含选项 X 和 Y 的治理提案，并发布至 `governance/proposals` 主题。
-2. ESP32 设备接收到提案后，执行本地评估逻辑（例如：当前代码中设定，若传感器温度 > 35.0°C，则投票给 Y；否则投票给 X）。
-3. 设备将带有 HMAC 签名的投票结果发布至 `governance/votes` 主题。
-4. 云端后端收集所有设备的投票，计算法定人数（Quorum）和共识阈值，从而决定最终的配置变更。
+## Segurança e Boas Práticas
 
-## 开源协议
+1. Buffer estático obrigatório: mantenha buffers de tamanho fixo e StaticJsonDocument nas funções de publicação. Não introduza String dinâmica no loop principal.
 
-本项目采用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 协议开源。详情请参阅 `LICENSE` 文件
+2. Gerenciamento de chaves: o CONFIG_HMAC_SECRET não deve ser commitado no repositório. Em produção, carregue a chave da NVS ou use secure boot e flash encryption do ESP32.
 
-## 技术参考
+3. MQTT sobre TLS: o exemplo usa MQTT em texto claro na porta 1883. Para ambientes reais, habilite MQTT over TLS na porta 8883 com autenticação mútua.
 
-- [ESP-IDF 官方文档](https://docs.espressif.com/projects/esp-idf/)
-- [ArduinoJson 文档 (v6)](https://arduinojson.org/v6/doc/)
-- [RFC 2104: HMAC (Keyed-Hashing for Message Authentication)](https://datatracker.ietf.org/doc/html/rfc2104)
-- [MQTT Version 5.0 规范](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+4. Assinatura de payload CBOR: o CommManager aplica HMAC-SHA256 sobre o payload binário CBOR antes do envio. O backend deve validar a assinatura após a decodificação CBOR.
+
+## Mecanismo de Governança IoT
+
+O sistema implementa um protocolo leve de consenso distribuído:
+
+1. O administrador na nuvem publica uma proposta no tópico governance/proposals.
+2. Cada ESP32 avalia a proposta localmente com base nos sensores.
+3. O dispositivo emite um voto assinado com HMAC-SHA256 no tópico governance/votes.
+4. O backend coleta os votos, calcula quórum e limiar de consenso, e aplica a decisão global.
+
+Esse mecanismo permite que a rede se adapte a condições ambientais locais sem depender exclusivamente de decisões centralizadas.
+
+## Comunicação Satelital e Otimização com CBOR
+
+Strings JSON são proibitivas para links satelitais, pois o custo é medido por byte transmitido. O CBOR resolve esse problema por três motivos:
+
+- Payload cerca de 28% menor que o JSON equivalente.
+- Codificação e decodificação binária direta, sem parsing de texto.
+- Chaves numéricas curtas (1 byte) em vez de strings longas.
+
+A telemetria típica (tensão, corrente, temperatura, timestamp e voto de governança) é codificada em cerca de 30 a 50 bytes CBOR, com folga dentro do limite de 160 bytes do Swarm.
+
+Fluxo de fallback:
+
+1. Leitura dos sensores.
+2. Codificação CBOR e assinatura HMAC.
+3. Verificação do Wi-Fi.
+4. Se Wi-Fi disponível: publicação via MQTT.
+5. Se Wi-Fi indisponível: envio via Swarm M138 por UART e rede satelital.
+
+O CommManager tenta o Wi-Fi primeiro, com custo operacional praticamente nulo, e recorre ao satélite apenas quando necessário.
+
+## Custo Operacional do Link Satelital
+
+O Swarm M138 foi escolhido por seu custo por mensagem inferior ao de concorrentes:
+
+- Swarm M138: cerca de US$ 0,05 por mensagem, cobertura global, 1 kbps.
+- Iridium 9603N: cerca de US$ 0,50 a US$ 1,00 por mensagem, cobertura global, 2,4 kbps.
+- RockBLOCK 9603: cerca de US$ 0,04 a US$ 0,14 por mensagem, cobertura global, 340 bytes por mensagem.
+
+Em uma frota de 10.000 dispositivos enviando uma mensagem por dia, a diferença entre Swarm e Iridium pode chegar a milhares de dólares por dia em economia operacional.
+
+O plano base do Swarm inclui taxa mensal fixa, tipicamente cerca de US$ 5 por mês, que cobre uma franquia de mensagens. Verifique as condições comerciais atualizadas junto à Swarm.
+
+## Licença
+
+Este projeto é distribuído sob a GNU Affero General Public License v3.0 (AGPL-3.0).
+
+## Referências Técnicas
+
+- ESP-IDF: https://docs.espressif.com/projects/esp-idf/
+- Swarm M138: https://swarm.space/
+- TinyCBOR: https://intel.github.io/tinycbor/current/
+- RFC 8949 (CBOR): https://datatracker.ietf.org/doc/html/rfc8949
+- RFC 2104 (HMAC): https://datatracker.ietf.org/doc/html/rfc2104
+- MQTT v5.0: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
