@@ -2,6 +2,7 @@
 #define SECURE_MAVLINK_H
 #include <MAVLink.h>
 #include <HardwareSerial.h>
+#pragma once
 
 class SecureMAVLink {
 public:
