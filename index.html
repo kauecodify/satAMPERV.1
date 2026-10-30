@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>satAMPERV.1 | Citizen Tech Global Solution</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#064e3b',
+                            900: '#022c22',
+                            950: '#011a14'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+        }
+        
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+        }
+    </style>
+</head>
+
+<body class="bg-brand-50 text-gray-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <nav class="fixed w-full z-50 glass shadow-sm transition-all duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                stroke-linecap="round" stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span class="font-bold text-xl text-brand-900 tracking-tight">satAMPERV.1</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#visao-geral" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Visão
+                            Geral</a>
+                    <a href="#caracteristicas" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Características</a>
+                    <a href="#arquitetura" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Arquitetura</a>
+                    <a href="#governanca" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Governança</a>
+                </div>
+                <div class="hidden md:flex">
+                    <a href="https://github.com/kauecodify/satAMPERV.1" target="_blank" class="bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg font-medium transition-all duration-300 shadow-lg shadow-brand-500/30 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path
+                                    d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>                        GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <header class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+        <div class="absolute inset-0 z-0">
+            <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-brand-200 opacity-30 blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-emerald-300 opacity-30 blur-3xl"></div>
+        </div>
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal">
+            <span class="inline-block py-1 px-3 rounded-full bg-brand-100 text-brand-700 text-sm font-semibold mb-6 tracking-wide uppercase">Citizen
+                    Tech Global Solution</span>
+            <h1 class="text-4xl md:text-6xl font-extrabold text-brand-900 tracking-tight mb-6 leading-tight">
+                Monitoramento Energético Remoto <br class="hidden md:block" />
+                <span class="text-brand-600">via Satélite de Baixo
+                        Custo</span>
+            </h1>
+            <p class="mt-4 max-w-2xl mx-auto text-xl text-gray-600 mb-10">
+                Firmware embarcado para ESP32 com governança distribuída. Telemetria contínua em áreas remotas via Wi-Fi/MQTT com fallback automático para satélite Swarm M138.
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="#arquitetura" class="bg-brand-600 hover:bg-brand-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 shadow-xl shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1">
+                        Explorar Arquitetura
+                    </a>
+                <a href="https://github.com/kauecodify/satAMPERV.1" target="_blank" class="bg-white hover:bg-gray-50 text-brand-900 border border-brand-200 px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round"
+                                stroke-linejoin="round" stroke-width="2"
+                                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg> Ver Código Fonte
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <section id="visao-geral" class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-2 gap-12 items-center reveal">
+                <div>
+                    <h2 class="text-3xl font-bold text-brand-900 mb-6">Visão Geral do Projeto</h2>
+                    <p class="text-gray-600 text-lg mb-6 leading-relaxed">
+                        O <strong class="text-brand-700">satAMPERV.1</strong> é projetado para monitoramento de infraestrutura energética em locais sem conectividade terrestre confiável. O sistema utiliza Wi-Fi/MQTT como link primário de baixo custo e
+                        comunicação satelital via modem Swarm M138 como fallback automático.
+                    </p>
+                    <p class="text-gray-600 text-lg mb-6 leading-relaxed">
+                        Implementando o conceito de <strong class="text-brand-700">IoT Governance</strong>, os dispositivos não apenas coletam dados, mas participam de decisões distribuídas, emitindo votos assinados com base em condições locais dos sensores.
+                    </p>
+                    <ul class="space-y-3 mt-8">
+                        <li class="flex items-center gap-3 text-gray-700">
+                            <svg class="w-6 h-6 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path></svg> Otimizado para eficiência energética e integridade de dados.
+                        </li>
+                        <li class="flex items-center gap-3 text-gray-700">
+                            <svg class="w-6 h-6 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path></svg> Payload em CBOR, reduzindo o tamanho da mensagem em ~28%.
+                        </li>
+                        <li class="flex items-center gap-3 text-gray-700">
+                            <svg class="w-6 h-6 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M5 13l4 4L19 7"></path></svg> Viabilidade comercial com custo operacional minimizado.
+                        </li>
+                    </ul>
+                </div>
+                <div class="relative">
+                    <div class="absolute inset-0 bg-brand-500 rounded-2xl transform rotate-3 opacity-10"></div>
+                    <div class="relative bg-brand-900 rounded-2xl p-6 shadow-2xl text-green-400 font-mono text-sm overflow-hidden border border-brand-700">
+                        <div class="flex gap-2 mb-4">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+                        <p class="mb-2"><span class="text-purple-400">const</span> <span class="text-blue-400">telemetry</span> = {
+                        </p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"dev"</span>: <span class="text-yellow-300">"DEV-AM-001"</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"ts"</span>: <span class="text-orange-400">1698765432</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"v"</span>: <span class="text-orange-400">12.4</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"c"</span>: <span class="text-orange-400">2.1</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"temp"</span>: <span class="text-orange-400">28.5</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"vote"</span>: <span class="text-orange-400">1</span>,</p>
+                        <p class="pl-4 mb-1"><span class="text-yellow-300">"hmac"</span>: <span class="text-yellow-300">"a3f8b9..."</span></p>
+                        <p>}</p>
+                        <p class="mt-4 text-gray-400">// Payload CBOR: ~45 bytes
+                        </p>
+                        <p class="text-gray-400">// Link: Swarm M138 (Fallback)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="caracteristicas" class="py-20 bg-brand-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-4xl font-bold text-brand-900 mb-4">Características Principais
+                </h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">Arquitetura robusta projetada para ambientes hostis e conectividade intermitente.
+                </p>
+            </div>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Comunicação Híbrida
+                    </h3>
+                    <p class="text-gray-600">Wi-Fi/MQTT como link primário. Fallback automático e transparente para satélite Swarm M138 quando o Wi-Fi não está disponível.</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Payload Compacto (CBOR)</h3>
+                    <p class="text-gray-600">Serialização binária que reduz o payload em ~28% em relação ao JSON, mantendo a mensagem dentro do limite rigoroso de 160 bytes do Swarm.
+                    </p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Integridade de Dados</h3>
+                    <p class="text-gray-600">Assinatura HMAC-SHA256 em todas as mensagens de telemetria e votos de governança, garantindo autenticidade e não-repúdio.</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Memória Otimizada
+                    </h3>
+                    <p class="text-gray-600">Uso de buffers estáticos e StaticJsonDocument nas rotas críticas. Nenhuma alocação dinâmica de String no loop principal para evitar fragmentação.</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Governança Distribuída
+                    </h3>
+                    <p class="text-gray-600">Dispositivos avaliam propostas localmente e emitem votos criptografados, permitindo consenso descentralizado baseado em condições reais do ambiente.</p>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-brand-100 reveal">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-brand-900 mb-3">Otimização em Assembly</h3>
+                    <p class="text-gray-600">Filtros de sinal implementados em assembly Xtensa para máximo desempenho e baixa latência na aquisição de dados dos sensores.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="arquitetura" class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-4xl font-bold text-brand-900 mb-4">Arquitetura do Sistema</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">Fluxo de dados otimizado da leitura do sensor até o backend na nuvem.
+                </p>
+            </div>
+
+            <div class="bg-brand-900 rounded-3xl p-8 md:p-12 shadow-2xl reveal">
+                <div class="grid md:grid-cols-3 gap-8 text-center relative">
+                    <div class="absolute top-1/2 left-0 w-full h-1 bg-brand-700 -z-0 hidden md:block transform -translate-y-1/2"></div>
+
+                    <div class="relative z-10 bg-brand-800 p-6 rounded-2xl border border-brand-700 hover:border-brand-500 transition-colors">
+                        <div class="w-16 h-16 bg-brand-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">1. Aquisição
+                        </h3>
+                        <p class="text-brand-200 text-sm">Sensores lidos pelo <code class="bg-brand-900 px-1 py-0.5 rounded">sensor_driver</code> (C) com filtros em Assembly Xtensa.</p>
+                    </div>
+
+                    <div class="relative z-10 bg-brand-600 p-6 rounded-2xl border border-brand-500 shadow-xl transform md:-translate-y-4">
+                        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                            <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">2. Processamento
+                        </h3>
+                        <p class="text-brand-100 text-sm"><code class="bg-brand-700 px-1 py-0.5 rounded">CommManager</code> codifica em CBOR, assina com HMAC-SHA256 e decide o link de envio.</p>
+                    </div>
+
+                    <div class="relative z-10 bg-brand-800 p-6 rounded-2xl border border-brand-700 hover:border-brand-500 transition-colors">
+                        <div class="w-16 h-16 bg-brand-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">3. Transmissão
+                        </h3>
+                        <p class="text-brand-200 text-sm">Wi-Fi/MQTT (primário) ou Swarm M138 via UART (fallback satelital).
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-12 text-center">
+                    <div class="inline-flex items-center gap-2 bg-brand-800 px-6 py-3 rounded-full border border-brand-600">
+                        <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7"></path></svg>
+                        <span class="text-brand-100 font-medium">Backend
+                                valida assinatura HMAC, decodifica CBOR e
+                                persiste os dados.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="governanca" class="py-20 bg-brand-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid lg:grid-cols-2 gap-16 items-center">
+                <div class="reveal">
+                    <h2 class="text-3xl md:text-4xl font-bold text-brand-900 mb-6">Mecanismo de Governança IoT</h2>
+                    <p class="text-gray-600 text-lg mb-6 leading-relaxed">
+                        O sistema implementa um protocolo leve de consenso distribuído, permitindo que a rede se adapte a condições ambientais locais sem depender exclusivamente de decisões centralizadas.
+                    </p>
+                    <div class="space-y-6">
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center font-bold text-brand-800">1</div>
+                            <div>
+                                <h4 class="font-bold text-brand-900">Proposta na Nuvem</h4>
+                                <p class="text-gray-600">O administrador publica uma proposta no tópico <code class="text-sm bg-gray-200 px-1 rounded">governance/proposals</code>.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center font-bold text-brand-800">2</div>
+                            <div>
+                                <h4 class="font-bold text-brand-900">Avaliação Local
+                                </h4>
+                                <p class="text-gray-600">Cada ESP32 avalia a proposta localmente com base nos dados dos seus sensores em tempo real.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center font-bold text-brand-800">3</div>
+                            <div>
+                                <h4 class="font-bold text-brand-900">Voto Criptografado
+                                </h4>
+                                <p class="text-gray-600">O dispositivo emite um voto assinado com HMAC-SHA256 no tópico <code class="text-sm bg-gray-200 px-1 rounded">governance/votes</code>.</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-4">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-200 flex items-center justify-center font-bold text-brand-800">4</div>
+                            <div>
+                                <h4 class="font-bold text-brand-900">Consenso Global
+                                </h4>
+                                <p class="text-gray-600">O backend coleta os votos, calcula quórum e limiar de consenso, e aplica a decisão global.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="reveal">
+                    <div class="bg-white p-8 rounded-2xl shadow-xl border border-brand-100">
+                        <h3 class="text-xl font-bold text-brand-900 mb-6 flex items-center gap-2">
+                            <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Por que CBOR e não JSON?
+                        </h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start gap-3">
+                                <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M5 13l4 4L19 7"></path></svg>
+                                <span class="text-gray-700"><strong
+                                            class="text-brand-800">~28%
+                                            menor</strong> que o payload JSON
+                                        equivalente.</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M5 13l4 4L19 7"></path></svg>
+                                <span class="text-gray-700"><strong
+                                            class="text-brand-800">Codificação
+                                            binária direta</strong>, sem
+                                        overhead de parsing de texto.</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M5 13l4 4L19 7"></path></svg>
+                                <span class="text-gray-700"><strong
+                                            class="text-brand-800">Chaves
+                                            numéricas curtas</strong> (1 byte)
+                                        em vez de strings longas.</span>
+                            </li>
+                            <li class="flex items-start gap-3">
+                                <svg class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="2"
+                                            d="M5 13l4 4L19 7"></path></svg>
+                                <span class="text-gray-700">Telemetria
+                                        típica em <strong
+                                            class="text-brand-800">30 a 50
+                                            bytes</strong>, com folga dentro do
+                                        limite de 160 bytes do Swarm.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-20 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-4xl font-bold text-brand-900 mb-4">Custo Operacional do Link Satelital</h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">O Swarm M138 foi escolhido por seu custo por mensagem significativamente inferior ao de concorrentes.</p>
+            </div>
+
+            <div class="overflow-x-auto reveal">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b-2 border-brand-200">
+                            <th class="py-4 px-6 text-brand-900 font-bold">Tecnologia</th>
+                            <th class="py-4 px-6 text-brand-900 font-bold">Custo por Mensagem</th>
+                            <th class="py-4 px-6 text-brand-900 font-bold">Taxa de Dados</th>
+                            <th class="py-4 px-6 text-brand-900 font-bold">Limite de Payload</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-700">
+                        <tr class="bg-brand-50 border-b border-brand-100">
+                            <td class="py-4 px-6 font-semibold text-brand-800 flex items-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-brand-500"></span> Swarm M138 (Escolhido)
+                            </td>
+                            <td class="py-4 px-6 font-bold text-green-600">~ US$ 0,05</td>
+                            <td class="py-4 px-6">~ 1 kbps</td>
+                            <td class="py-4 px-6">160 bytes</td>
+                        </tr>
+                        <tr class="border-b border-gray-100">
+                            <td class="py-4 px-6 font-medium">RockBLOCK 9603
+                            </td>
+                            <td class="py-4 px-6">US$ 0,04 - US$ 0,14</td>
+                            <td class="py-4 px-6">N/A</td>
+                            <td class="py-4 px-6">340 bytes</td>
+                        </tr>
+                        <tr class="border-b border-gray-100">
+                            <td class="py-4 px-6 font-medium">Iridium 9603N
+                            </td>
+                            <td class="py-4 px-6 text-red-600">US$ 0,50 - US$ 1,00</td>
+                            <td class="py-4 px-6">2,4 kbps</td>
+                            <td class="py-4 px-6">340 bytes</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-8 bg-brand-100 border-l-4 border-brand-500 p-6 rounded-r-xl reveal">
+                <p class="text-brand-900 font-medium">
+                    💡 <strong>Impacto em Escala:</strong> Em uma frota de 10.000 dispositivos enviando uma mensagem por dia, a diferença entre Swarm e Iridium pode chegar a milhares de dólares por dia em economia operacional.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="py-20 bg-brand-900 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal">
+            <h2 class="text-3xl md:text-4xl font-bold mb-6">Pronto para Implementação
+            </h2>
+            <p class="text-xl text-brand-200 mb-10 max-w-2xl mx-auto">
+                O projeto está disponível sob a licença GNU Affero General Public License v3.0 (AGPL-3.0). Clone o repositório e comece a compilar com ESP-IDF v5.1+.
+            </p>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <a href="https://github.com/kauecodify/satAMPERV.1" target="_blank" class="bg-brand-500 hover:bg-brand-400 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 shadow-lg hover:shadow-brand-500/50 hover:-translate-y-1 flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path
+                                d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>                    Acessar Repositório
+                </a>
+                <div class="bg-brand-800 px-8 py-4 rounded-xl font-mono text-sm text-brand-300 flex items-center gap-3 border border-brand-700">
+                    <span>git clone
+                            https://github.com/kauecodify/satAMPERV.1.git</span>
+                    <button onclick="navigator.clipboard.writeText('git clone https://github.com/kauecodify/satAMPERV.1.git')" class="text-brand-100 hover:text-white transition-colors" title="Copiar">
+                            <svg class="w-5 h-5" fill="none"
+                                stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-brand-950 text-brand-300 py-12 border-t border-brand-900">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div class="col-span-2">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round" stroke-width="2"
+                                    d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span class="font-bold text-xl text-white tracking-tight">satAMPERV.1</span>
+                    </div>
+                    <p class="text-sm text-brand-400 max-w-sm">
+                        Firmware embarcado para monitoramento de infraestrutura energética em locais remotos, com governança distribuída e otimização extrema de recursos.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white mb-4">Referências Técnicas
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="https://docs.espressif.com/projects/esp-idf/" target="_blank" class="hover:text-brand-500 transition-colors">ESP-IDF
+                                    v5.1+</a></li>
+                        <li><a href="https://swarm.space/" target="_blank" class="hover:text-brand-500 transition-colors">Swarm
+                                    M138</a></li>
+                        <li><a href="https://intel.github.io/tinycbor/current/" target="_blank" class="hover:text-brand-500 transition-colors">TinyCBOR</a></li>
+                        <li><a href="https://datatracker.ietf.org/doc/html/rfc8949" target="_blank" class="hover:text-brand-500 transition-colors">RFC
+                                    8949 (CBOR)</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white mb-4">Legal</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">Licença
+                                    AGPL-3.0</a></li>
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">Política
+                                    de Segurança</a></li>
+                        <li><span class="text-brand-500">Citizen Tech Global
+                                    Solution</span></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-brand-900 pt-8 text-center text-sm text-brand-500">
+                <p>&copy; 2030 satAMPERV.1 | Desenvolvido para RockNewVenture & Citizen Tech Global Solution.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => {
+                observer.observe(el);
+            });
+        });
+    </script>
+</body>
+
+</html>
