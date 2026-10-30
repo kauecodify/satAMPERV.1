@@ -1,52 +1,52 @@
 # satAMPERV.1
 
-Firmware embarcado para monitoramento energético remoto via satélite de baixo custo, com governança distribuída em ESP32.
+Embedded firmware for remote energy monitoring via low-cost satellite, with distributed governance on ESP32.
 
-## Visao Geral
+## Overview
 
-O satAMPERV.1 e um firmware para ESP32 projetado para monitoramento de infraestrutura energética em locais sem conectividade terrestre confiável. O sistema usa Wi-Fi/MQTT como link primário de baixo custo e comunicação satelital via modem Swarm M138 como fallback automático. O objetivo e manter telemetria contínua mesmo em áreas remotas.
+satAMPERV.1 is an ESP32 firmware designed for monitoring energy infrastructure in locations without reliable terrestrial connectivity. The system uses Wi-Fi/MQTT as a low-cost primary link and satellite communication via the Swarm M138 modem as an automatic fallback. The goal is to maintain continuous telemetry even in remote areas.
 
-O projeto também implementa o conceito de IoT Governance: os dispositivos não apenas coletam dados, mas participam de decisões distribuídas, emitindo votos assinados com base em condições locais dos sensores.
+The project also implements the concept of IoT Governance: devices do not just collect data, but participate in distributed decisions, emitting signed votes based on local sensor conditions.
 
-A arquitetura foi otimizada para eficiência energética, integridade de dados e viabilidade comercial. O payload de telemetria usa CBOR (Concise Binary Object Representation) em vez de JSON, reduzindo o tamanho da mensagem e viabilizando o uso econômico de links satelitais.
+The architecture has been optimized for energy efficiency, data integrity, and commercial viability. The telemetry payload uses CBOR (Concise Binary Object Representation) instead of JSON, reducing message size and enabling the economical use of satellite links.
 
-## Caracteristicas Principais
+## Key Features
 
-- Comunicação híbrida: Wi-Fi/MQTT como link primário; fallback automático para satélite Swarm M138 quando o Wi-Fi não está disponível.
-- Payload compacto com CBOR: serialização binária que reduz o payload em cerca de 28% em relação ao JSON e mantém a mensagem dentro do limite de 160 bytes do Swarm.
-- Integridade de dados: assinatura HMAC-SHA256 em todas as mensagens de telemetria e votos de governança.
-- Memória otimizada: uso de buffers estáticos e StaticJsonDocument nas rotas críticas; nenhuma alocação dinâmica de String no loop principal.
-- Governança distribuída: dispositivos avaliam propostas localmente e emitem votos criptografados.
-- Alta disponibilidade: reconexão automática de Wi-Fi/MQTT, watchdog de reinício e comandos remotos de configuração.
-- Otimização em assembly: filtros de sinal implementados em assembly Xtensa para desempenho em aquisição de dados.
+- **Hybrid communication**: Wi-Fi/MQTT as the primary link; automatic fallback to Swarm M138 satellite when Wi-Fi is unavailable.
+- **Compact CBOR payload**: Binary serialization that reduces payload size by approximately 28% compared to JSON, keeping the message well within Swarm's 160-byte limit.
+- **Data integrity**: HMAC-SHA256 signature on all telemetry messages and governance votes.
+- **Optimized memory**: Use of static buffers and `StaticJsonDocument` in critical paths; no dynamic String allocation in the main loop.
+- **Distributed governance**: Devices evaluate proposals locally and emit cryptographically signed votes.
+- **High availability**: Automatic Wi-Fi/MQTT reconnection, restart watchdog, and remote configuration commands.
+- **Assembly optimization**: Signal filters implemented in Xtensa assembly for high-performance data acquisition.
 
-## Arquitetura do Sistema
+## System Architecture
 
-Fluxo resumido:
+Summarized flow:
 
-1. Sensores são lidos pelo sensor_driver (C).
-2. O CommManager codifica a telemetria em CBOR, assina com HMAC-SHA256 e decide o link de envio.
-3. Se o Wi-Fi estiver disponível, o payload é publicado via MQTT no backend.
-4. Se o Wi-Fi não estiver disponível, o payload é enviado ao modem Swarm M138 via UART, que o transmite pela rede satelital.
+1. Sensors are read by the `sensor_driver` (C).
+2. The `CommManager` encodes the telemetry into CBOR, signs it with HMAC-SHA256, and decides the transmission link.
+3. If Wi-Fi is available, the payload is published via MQTT to the backend.
+4. If Wi-Fi is unavailable, the payload is sent to the Swarm M138 modem via UART, which transmits it over the satellite network.
 
-Diagrama em texto:
+Text diagram:
 
-```
+```text
 ESP32
-  Sensores -> Sensor Driver (C) -> Comm Manager (C++)
+  Sensors -> Sensor Driver (C) -> Comm Manager (C++)
                                       |
                                       +-> PayloadCodec (CBOR)
                                       +-> Crypto Engine (HMAC-SHA256)
                                       |
-                                      +-> Wi-Fi / MQTT (link primario)
-                                      +-> Swarm M138 (fallback satelital)
+                                      +-> Wi-Fi / MQTT (primary link)
+                                      +-> Swarm M138 (satellite fallback)
 ```
 
-O backend recebe os dados, valida a assinatura HMAC, decodifica o CBOR e persiste as informações.
+The backend receives the data, validates the HMAC signature, decodes the CBOR, and persists the information.
 
-## Estrutura do Projeto
+## Project Structure
 
-```
+```text
 satAMPERV.1/
 ├── README.md
 ├── LICENSE
@@ -72,64 +72,64 @@ satAMPERV.1/
         └── payload_codec.cpp
 ```
 
-## Requisitos de Hardware
+## Hardware Requirements
 
-- MCU: ESP32-WROOM-32 ou equivalente.
-- Modem satelital: Swarm M138, interface UART 3,3 V CMOS, 115200 baud, 8N1.
-- Antena: antena Swarm para 137–138 MHz (downlink) e 148–150 MHz (uplink).
-- Alimentação: 3,3 V. Consumo do modem: cerca de 80 uA em sleep, 26 mA típico em recepção e 850 mA de pico em transmissão.
-- Interface: UART entre ESP32 e M138, com pinos configuráveis no comm_manager.cpp.
+- **MCU**: ESP32-WROOM-32 or equivalent.
+- **Satellite modem**: Swarm M138, 3.3V CMOS UART interface, 115200 baud, 8N1.
+- **Antenna**: Swarm antenna for 137–138 MHz (downlink) and 148–150 MHz (uplink).
+- **Power supply**: 3.3V. Modem consumption: ~80 µA in sleep, 26 mA typical in reception, and 850 mA peak in transmission.
+- **Interface**: UART between ESP32 and M138, with configurable pins in `comm_manager.cpp`.
 
-O Swarm M138 oferece taxa de dados de aproximadamente 1 kbps e suporta mensagens de até 160 bytes de payload binário. O CBOR mantém a telemetria típica em cerca de 30 a 50 bytes.
+The Swarm M138 offers a data rate of approximately 1 kbps and supports messages with up to 160 bytes of binary payload. CBOR keeps typical telemetry around 30 to 50 bytes.
 
-## Requisitos de Software
+## Software Requirements
 
-- ESP-IDF v5.1 ou superior.
-- Python 3.8 ou superior.
-- CMake 3.16 ou superior.
-- Componente CBOR: espressif/cbor (TinyCBOR), instalável via Component Registry.
+- ESP-IDF v5.1 or higher.
+- Python 3.8 or higher.
+- CMake 3.16 or higher.
+- CBOR component: `espressif/cbor` (TinyCBOR), installable via the Component Registry.
 
-O CBOR não faz parte do núcleo do ESP-IDF desde a versão 5.0. É necessário instalá-lo separadamente antes da compilação.
+*Note:* CBOR has not been part of the ESP-IDF core since version 5.0. It must be installed separately before compilation.
 
-## Instalação e Compilação
+## Installation and Compilation
 
-1. Clonar o repositório:
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/kauecodify/satAMPERV.1.git
 cd satAMPERV.1/iot-device
 ```
 
-2. Instalar a dependência CBOR:
+2. Install the CBOR dependency:
 
 ```bash
 idf.py add-dependency "espressif/cbor^0.6.0~1"
 ```
 
-Esse comando cria ou atualiza o idf_component.yml e baixa o TinyCBOR do Component Registry.
+This command creates or updates the `idf_component.yml` and downloads TinyCBOR from the Component Registry.
 
-3. Configurar o alvo e compilar:
+3. Configure the target and build:
 
 ```bash
 idf.py set-target esp32
 idf.py build
 ```
 
-4. Gravar e monitorar:
+4. Flash and monitor:
 
 ```bash
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-Substitua /dev/ttyUSB0 pela porta serial correspondente ao sistema.
+Replace `/dev/ttyUSB0` with the serial port corresponding to your system.
 
-## Configuração
+## Configuration
 
-Antes da compilação, edite include/config.h com os parâmetros da rede e do backend:
+Before compilation, edit `include/config.h` with your network and backend parameters:
 
 ```c
-#define CONFIG_WIFI_SSID      "sua_rede"
-#define CONFIG_WIFI_PASSWORD  "sua_senha"
+#define CONFIG_WIFI_SSID      "your_network"
+#define CONFIG_WIFI_PASSWORD  "your_password"
 
 #define CONFIG_MQTT_BROKER    "192.168.1.100"
 #define CONFIG_MQTT_PORT      1883
@@ -137,79 +137,76 @@ Antes da compilação, edite include/config.h com os parâmetros da rede e do ba
 #define CONFIG_MQTT_PASS      "device_password"
 
 #define CONFIG_DEVICE_ID      "DEV-AM-001"
-#define CONFIG_HMAC_SECRET    "sua_chave_secreta_forte"
+#define CONFIG_HMAC_SECRET    "your_strong_secret_key"
 ```
 
-Os pinos UART do Swarm M138 são definidos no comm_manager.cpp:
+The Swarm M138 UART pins are defined in `comm_manager.cpp`:
 
 ```cpp
 static SwarmDriver swarm(UART_NUM_1, 17, 16);
 ```
 
-O driver usa o protocolo NMEA/AT do Swarm, com comandos como $CS (check status), $TD (transmit data) e $MT C=U (message count).
+The driver uses the Swarm NMEA/AT protocol, with commands such as `$CS` (check status), `$TD` (transmit data), and `$MT C=U` (message count).
 
-## Segurança e Boas Práticas
+## Security and Best Practices
 
-1. Buffer estático obrigatório: mantenha buffers de tamanho fixo e StaticJsonDocument nas funções de publicação. Não introduza String dinâmica no loop principal.
+1. **Mandatory static buffers**: Maintain fixed-size buffers and `StaticJsonDocument` in publishing functions. Do not introduce dynamic Strings in the main loop.
+2. **Key management**: `CONFIG_HMAC_SECRET` must not be committed to the repository. In production, load the key from NVS or use ESP32 secure boot and flash encryption.
+3. **MQTT over TLS**: The example uses plaintext MQTT on port 1883. For real-world environments, enable MQTT over TLS on port 8883 with mutual authentication.
+4. **CBOR payload signature**: The `CommManager` applies HMAC-SHA256 to the binary CBOR payload before sending. The backend must validate the signature after CBOR decoding.
 
-2. Gerenciamento de chaves: o CONFIG_HMAC_SECRET não deve ser commitado no repositório. Em produção, carregue a chave da NVS ou use secure boot e flash encryption do ESP32.
+## IoT Governance Mechanism
 
-3. MQTT sobre TLS: o exemplo usa MQTT em texto claro na porta 1883. Para ambientes reais, habilite MQTT over TLS na porta 8883 com autenticação mútua.
+The system implements a lightweight distributed consensus protocol:
 
-4. Assinatura de payload CBOR: o CommManager aplica HMAC-SHA256 sobre o payload binário CBOR antes do envio. O backend deve validar a assinatura após a decodificação CBOR.
+1. The cloud administrator publishes a proposal to the `governance/proposals` topic.
+2. Each ESP32 evaluates the proposal locally based on its sensor data.
+3. The device emits an HMAC-SHA256 signed vote to the `governance/votes` topic.
+4. The backend collects the votes, calculates the quorum and consensus threshold, and applies the global decision.
 
-## Mecanismo de Governança IoT
+This mechanism allows the network to adapt to local environmental conditions without relying exclusively on centralized decisions.
 
-O sistema implementa um protocolo leve de consenso distribuído:
+## Satellite Communication and CBOR Optimization
 
-1. O administrador na nuvem publica uma proposta no tópico governance/proposals.
-2. Cada ESP32 avalia a proposta localmente com base nos sensores.
-3. O dispositivo emite um voto assinado com HMAC-SHA256 no tópico governance/votes.
-4. O backend coleta os votos, calcula quórum e limiar de consenso, e aplica a decisão global.
+JSON strings are prohibitive for satellite links, as costs are measured per byte transmitted. CBOR solves this problem for three reasons:
 
-Esse mecanismo permite que a rede se adapte a condições ambientais locais sem depender exclusivamente de decisões centralizadas.
+- Payload is approximately 28% smaller than the equivalent JSON.
+- Direct binary encoding and decoding, without text parsing overhead.
+- Short numeric keys (1 byte) instead of long strings.
 
-## Comunicação Satelital e Otimização com CBOR
+Typical telemetry (voltage, current, temperature, timestamp, and governance vote) is encoded in about 30 to 50 bytes of CBOR, leaving ample room within Swarm's 160-byte limit.
 
-Strings JSON são proibitivas para links satelitais, pois o custo é medido por byte transmitido. O CBOR resolve esse problema por três motivos:
+Fallback flow:
 
-- Payload cerca de 28% menor que o JSON equivalente.
-- Codificação e decodificação binária direta, sem parsing de texto.
-- Chaves numéricas curtas (1 byte) em vez de strings longas.
+1. Sensor reading.
+2. CBOR encoding and HMAC signature.
+3. Wi-Fi availability check.
+4. If Wi-Fi is available: publish via MQTT.
+5. If Wi-Fi is unavailable: send via Swarm M138 over UART and the satellite network.
 
-A telemetria típica (tensão, corrente, temperatura, timestamp e voto de governança) é codificada em cerca de 30 a 50 bytes CBOR, com folga dentro do limite de 160 bytes do Swarm.
+The `CommManager` attempts Wi-Fi first, with practically zero operational cost, and resorts to the satellite only when necessary.
 
-Fluxo de fallback:
+## Operational Cost of the Satellite Link
 
-1. Leitura dos sensores.
-2. Codificação CBOR e assinatura HMAC.
-3. Verificação do Wi-Fi.
-4. Se Wi-Fi disponível: publicação via MQTT.
-5. Se Wi-Fi indisponível: envio via Swarm M138 por UART e rede satelital.
+The Swarm M138 was chosen for its lower cost per message compared to competitors:
 
-O CommManager tenta o Wi-Fi primeiro, com custo operacional praticamente nulo, e recorre ao satélite apenas quando necessário.
+- **Swarm M138**: ~$0.05 per message, global coverage, 1 kbps.
+- **Iridium 9603N**: ~$0.50 to $1.00 per message, global coverage, 2.4 kbps.
+- **RockBLOCK 9603**: ~$0.04 to $0.14 per message, global coverage, 340 bytes per message.
 
-## Custo Operacional do Link Satelital
+In a fleet of 10,000 devices sending one message per day, the difference between Swarm and Iridium can amount to thousands of dollars per day in operational savings.
 
-O Swarm M138 foi escolhido por seu custo por mensagem inferior ao de concorrentes:
+Swarm's base plan includes a fixed monthly fee, typically around $5 per month, which covers a message allowance. Please verify updated commercial conditions directly with Swarm.
 
-- Swarm M138: cerca de US$ 0,05 por mensagem, cobertura global, 1 kbps.
-- Iridium 9603N: cerca de US$ 0,50 a US$ 1,00 por mensagem, cobertura global, 2,4 kbps.
-- RockBLOCK 9603: cerca de US$ 0,04 a US$ 0,14 por mensagem, cobertura global, 340 bytes por mensagem.
+## License
 
-Em uma frota de 10.000 dispositivos enviando uma mensagem por dia, a diferença entre Swarm e Iridium pode chegar a milhares de dólares por dia em economia operacional.
+This project is distributed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
-O plano base do Swarm inclui taxa mensal fixa, tipicamente cerca de US$ 5 por mês, que cobre uma franquia de mensagens. Verifique as condições comerciais atualizadas junto à Swarm.
+## Technical References
 
-## Licença
-
-Este projeto é distribuído sob a GNU Affero General Public License v3.0 (AGPL-3.0).
-
-## Referências Técnicas
-
-- ESP-IDF: https://docs.espressif.com/projects/esp-idf/
-- Swarm M138: https://swarm.space/
-- TinyCBOR: https://intel.github.io/tinycbor/current/
-- RFC 8949 (CBOR): https://datatracker.ietf.org/doc/html/rfc8949
-- RFC 2104 (HMAC): https://datatracker.ietf.org/doc/html/rfc2104
-- MQTT v5.0: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
+- **ESP-IDF**: https://docs.espressif.com/projects/esp-idf/
+- **Swarm M138**: https://swarm.space/
+- **TinyCBOR**: https://intel.github.io/tinycbor/current/
+- **RFC 8949 (CBOR)**: https://datatracker.ietf.org/doc/html/rfc8949
+- **RFC 2104 (HMAC)**: https://datatracker.ietf.org/doc/html/rfc2104
+- **MQTT v5.0**: https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html
