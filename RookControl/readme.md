@@ -143,4 +143,4 @@ void task_read_environment(void *pvParameters) {
 - Regulamentação de Espaço Aéreo para Aeronaves Remotamente Pilotadas (ANAC/DECEA)
 
 ---
-*Desenvolvido para FIAP Citizen Tech Global Solution | Licença AGPL-3.0*
+*Desenvolvido para ROCKNEWVENTURE & Citizen Tech BRA | Licença AGPL-3.0*
