@@ -1,4 +1,4 @@
-# satAMPERV.1 by RockNewVenture & Citizen Tech
+# satAMPERV.1
 
 Firmware embarcado para monitoramento energético remoto via satélite de baixo custo, com governança distribuída em ESP32.
 
