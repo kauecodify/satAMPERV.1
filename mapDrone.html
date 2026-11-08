@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RookControl | Monitoramento & Controle de Drones</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script>
+tailwind.config = {
+  theme: { extend: {
+    colors: { brand: { 50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669',700:'#047857',800:'#064e3b',900:'#022c22',950:'#011a14' } },
+    fontFamily: { sans: ['Inter','sans-serif'] }
+  }}
+}
+</script>
+<style>
+.glass{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(16,185,129,.15)}
+.mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+
+#map,#drone-map{width:100%;height:100%;min-height:560px;background:#022c22}
+.leaflet-container{background:#022c22;font-family:'Inter',sans-serif}
+.leaflet-control-attribution{display:none!important}
+.leaflet-popup-content-wrapper{background:#022c22;color:#ecfdf5;border:1px solid #065f46;border-radius:12px}
+.leaflet-popup-tip{background:#022c22;border:1px solid #065f46}
+.leaflet-bar a{background:#022c22!important;color:#d1fae5!important;border-color:#065f46!important}
+.leaflet-bar a:hover{background:#064e3b!important}
+
+/* Tower markers */
+.tower-marker{display:flex;flex-direction:column;align-items:center;cursor:pointer}
+.tower-marker .bubble{background:#fff;color:#022c22;padding:4px 8px;border-radius:8px;border:2px solid #10b981;box-shadow:0 4px 12px rgba(2,44,34,.35);display:flex;align-items:baseline;gap:2px;transition:transform .2s}
+.tower-marker:hover .bubble{transform:scale(1.08)}
+.tower-marker .temp{font-size:13px;font-weight:700;line-height:1}
+.tower-marker .deg{font-size:9px;font-weight:600;opacity:.7}
+.tower-marker .pointer{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #10b981;margin-top:-1px}
+.tower-marker.warn .bubble{border-color:#f59e0b}.tower-marker.warn .pointer{border-top-color:#f59e0b}
+.tower-marker.hot .bubble{border-color:#f97316}.tower-marker.hot .pointer{border-top-color:#f97316}
+.tower-marker.critical .bubble{border-color:#ef4444;color:#7f1d1d;animation:pulse-crit 1.4s cubic-bezier(.455,.03,.515,.955) infinite}
+.tower-marker.critical .pointer{border-top-color:#ef4444}
+@keyframes pulse-crit{0%,100%{box-shadow:0 4px 12px rgba(2,44,34,.35),0 0 0 0 rgba(239,68,68,.55)}50%{box-shadow:0 4px 12px rgba(2,44,34,.35),0 0 0 12px rgba(239,68,68,0)}}
+
+/* Drone markers */
+.drone-marker{display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s}
+.drone-marker:hover{transform:scale(1.12)}
+.drone-marker .body{width:32px;height:32px;border-radius:50%;background:#fff;border:2px solid #10b981;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(2,44,34,.4);position:relative}
+.drone-marker .arrow{width:14px;height:14px;color:#10b981;transition:transform .5s}
+.drone-marker.armed .body{border-color:#3b82f6}.drone-marker.armed .arrow{color:#3b82f6}
+.drone-marker.rtl .body{border-color:#f59e0b}.drone-marker.rtl .arrow{color:#f59e0b}
+.drone-marker.critical .body{border-color:#ef4444;animation:pulse-crit 1.4s infinite}.drone-marker.critical .arrow{color:#ef4444}
+.drone-marker .label{position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#022c22;color:#ecfdf5;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+
+/* Cloud markers (Amazon seeding) */
+.cloud-marker{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.55);border:2px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;animation:cloud-pulse 3s ease-in-out infinite;backdrop-filter:blur(2px)}
+.cloud-marker svg{color:#1e40af}
+.cloud-marker.seeded{background:rgba(59,130,246,.55);border-color:#93c5fd;animation:none;box-shadow:0 0 25px rgba(59,130,246,.6)}
+.cloud-marker.seeded svg{color:#fff}
+@keyframes cloud-pulse{0%,100%{box-shadow:0 0 15px rgba(255,255,255,.4),inset 0 0 12px rgba(200,220,255,.5)}50%{box-shadow:0 0 32px rgba(255,255,255,.85),inset 0 0 18px rgba(200,220,255,.75)}}
+
+/* Seed point burst */
+.seed-point{width:16px;height:16px;border-radius:50%;background:#fbbf24;border:2px solid #fff;box-shadow:0 0 12px rgba(251,191,36,.9);animation:seed-burst 1.6s ease-out forwards}
+@keyframes seed-burst{0%{transform:scale(.3);opacity:1}70%{transform:scale(2.2);opacity:.7}100%{transform:scale(3);opacity:0}}
+
+/* Gauge */
+.gauge-needle{transform-origin:120px 120px;transition:transform 1s cubic-bezier(.34,1.56,.64,1)}
+
+/* Scrollbar */
+.thin-scroll::-webkit-scrollbar{width:5px;height:5px}
+.thin-scroll::-webkit-scrollbar-track{background:transparent}
+.thin-scroll::-webkit-scrollbar-thumb{background:#d1fae5;border-radius:3px}
+.thin-scroll::-webkit-scrollbar-thumb:hover{background:#a7f3d0}
+
+/* Live dot */
+.live-dot{width:6px;height:6px;border-radius:50%;background:#10b981;animation:live-pulse 2s infinite}
+@keyframes live-pulse{0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,.7)}50%{box-shadow:0 0 0 5px rgba(16,185,129,0)}}
+
+/* Tab buttons */
+.tab-btn{position:relative;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:500;color:#6b7280;transition:all .2s;display:flex;align-items:center;gap:8px}
+.tab-btn:hover{color:#059669;background:rgba(16,185,129,.08)}
+.tab-btn.active{color:#047857;background:#d1fae5}
+.tab-btn svg{width:16px;height:16px}
+
+/* Mode buttons */
+.mode-btn{padding:6px 8px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid #e5e7eb;background:#fff;color:#6b7280;transition:all .15s;text-transform:uppercase;letter-spacing:.3px}
+.mode-btn:hover{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+.mode-btn.active{background:#10b981;border-color:#10b981;color:#fff}
+
+/* Action buttons */
+.action-btn{padding:10px 12px;border-radius:8px;font-size:12px;font-weight:600;border:1px solid #e5e7eb;background:#fff;color:#374151;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:6px}
+.action-btn:hover:not(:disabled){border-color:#a7f3d0;background:#ecfdf5}
+.action-btn:disabled{opacity:.4;cursor:not-allowed}
+.action-btn.primary{background:#059669;border-color:#059669;color:#fff}
+.action-btn.primary:hover:not(:disabled){background:#047857}
+.action-btn.danger{background:#ef4444;border-color:#ef4444;color:#fff}
+.action-btn.danger:hover:not(:disabled){background:#dc2626}
+.action-btn svg{width:14px;height:14px}
+
+/* Telemetry cells */
+.telemetry-cell{background:#f9fafb;border-radius:8px;padding:8px}
+.telemetry-cell .label{font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af;font-weight:600;margin-bottom:2px}
+.telemetry-cell .value{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:#022c22}
+.telemetry-cell .value small{font-size:10px;color:#9ca3af;font-weight:400;margin-left:1px}
+
+/* Waypoint + home markers */
+.wp-marker{width:24px;height:24px;border-radius:50%;background:#059669;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);font-family:'JetBrains Mono',monospace}
+.home-marker{width:26px;height:26px;border-radius:6px;background:#022c22;color:#ecfdf5;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid #10b981;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+</style>
+</head>
+<body class="bg-brand-50 text-gray-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+<!-- NAVBAR -->
+<nav class="fixed w-full z-[1000] glass shadow-sm transition-all duration-300">
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center h-20">
+      <div class="flex-shrink-0 flex items-center gap-2">
+        <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+        </svg>
+        <span class="font-bold text-xl text-brand-900 tracking-tight">RookControl</span>
+      </div>
+      <div class="hidden md:flex items-center gap-1 bg-gray-50 rounded-xl p-1">
+        <button class="tab-btn active" data-tab="ambiental">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          Ambiental
+        </button>
+        <button class="tab-btn" data-tab="drones">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L4 22l8-4 8 4L12 2z"/></svg>
+          Drones
+        </button>
+      </div>
+      <div class="hidden md:flex items-center gap-4">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold">
+          <div class="live-dot"></div><span>MAVLink Online</span>
+        </div>
+        <div class="mono text-sm font-semibold text-brand-900 tabular-nums" id="clock">--:--:--</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ABA AMBIENTAL -->
+<div id="tab-ambiental" class="tab-content">
+  <header class="relative pt-32 pb-8 overflow-hidden">
+    <div class="absolute inset-0 z-0 pointer-events-none">
+      <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-brand-200 opacity-30 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 -ml-20 w-80 h-80 rounded-full bg-emerald-300 opacity-30 blur-3xl"></div>
+    </div>
+    <div class="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-10">
+        <span class="inline-block py-1 px-3 rounded-full bg-brand-100 text-brand-700 text-sm font-semibold mb-6 tracking-wide uppercase">Environmental Telemetry · RookAll</span>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-brand-900 tracking-tight mb-4 leading-tight">Monitoramento Ambiental <br class="hidden md:block"/><span class="text-brand-600">em Tempo Real</span></h1>
+        <p class="max-w-2xl mx-auto text-lg text-gray-600">Temperatura e umidade das estações RookControl distribuídas via MQTT, com perímetros georreferenciados e failsafes ambientais integrados ao flight controller.</p>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Temperatura Máxima</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-max">--<span class="text-base text-gray-400 ml-1">°C</span></p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Temperatura Média</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-avg">--<span class="text-base text-gray-400 ml-1">°C</span></p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Torres Online</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-towers">--<span class="text-base text-gray-400 ml-1">/ 6</span></p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Alertas Ativos</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-alerts">--</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" style="min-height:640px">
+      <aside class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[640px]">
+        <div class="p-5 border-b border-brand-100">
+          <div class="flex justify-between items-center">
+            <h2 class="text-base font-bold text-brand-900 tracking-tight">Estações</h2>
+            <span class="mono text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-1 rounded" id="tl-count">0/0</span>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">Ordenadas por temperatura</p>
+        </div>
+        <div class="flex-1 overflow-y-auto thin-scroll p-2" id="tower-list"></div>
+      </aside>
+      <section class="lg:col-span-6 bg-white rounded-2xl border border-brand-100 shadow-xl overflow-hidden h-[640px] relative">
+        <div class="absolute top-4 left-4 z-[500] bg-brand-900/95 backdrop-blur rounded-xl p-3 border border-brand-700 shadow-lg">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-2">Temperatura °C</p>
+          <div class="space-y-1.5 text-[11px] mono">
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#10b981"></div><span>0 – 45</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#f59e0b"></div><span>45 – 50</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#f97316"></div><span>50 – 55</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#ef4444"></div><span>55 +</span></div>
+          </div>
+        </div>
+        <button id="btn-fit" class="absolute top-4 right-4 z-[500] bg-brand-900/95 hover:bg-brand-800 backdrop-blur text-white px-3 py-2 rounded-lg text-xs font-semibold border border-brand-700 shadow-lg transition-colors flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          Ajustar
+        </button>
+        <div id="map" class="w-full h-full"></div>
+      </section>
+      <aside class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[640px]">
+        <div id="lm-empty" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+          </div>
+          <h3 class="text-sm font-bold text-brand-900 mb-1">Selecione uma torre</h3>
+          <p class="text-xs text-gray-500 leading-relaxed">Clique em um marcador no mapa ou em um cartão da lista para visualizar os sensores.</p>
+        </div>
+        <div id="lm-body" class="flex-1 overflow-y-auto thin-scroll hidden">
+          <div class="p-5 border-b border-brand-100">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="text-base font-bold text-brand-900 leading-tight truncate" id="lm-name">—</h2>
+                <p class="text-xs text-gray-500 mt-0.5" id="lm-loc">—</p>
+              </div>
+              <span class="mono text-[10px] font-bold bg-brand-50 text-brand-700 px-2 py-1 rounded flex-shrink-0" id="lm-id">—</span>
+            </div>
+          </div>
+          <div class="p-5 border-b border-brand-100 flex flex-col items-center">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Temperatura Ambiente</p>
+            <svg class="w-full max-w-[240px]" viewBox="0 0 240 240">
+              <path d="M 57.77 182.23 A 88 88 0 1 1 182.23 182.23" stroke="#e5e7eb" stroke-width="14" fill="none"/>
+              <path d="M 57.77 182.23 A 88 88 0 0 1 174.87 51.2" stroke="#10b981" stroke-width="14" fill="none" stroke-linecap="round"/>
+              <path d="M 174.87 51.2 A 88 88 0 0 1 194.51 73.17" stroke="#f59e0b" stroke-width="14" fill="none"/>
+              <path d="M 194.51 73.17 A 88 88 0 0 1 205.79 100.42" stroke="#f97316" stroke-width="14" fill="none"/>
+              <path d="M 205.79 100.42 A 88 88 0 0 1 182.23 182.23" stroke="#ef4444" stroke-width="14" fill="none"/>
+              <g id="gauge-ticks"></g>
+              <g id="gauge-needle" class="gauge-needle">
+                <line x1="120" y1="120" x2="120" y2="70" stroke="#022c22" stroke-width="3" stroke-linecap="round"/>
+                <circle cx="120" cy="120" r="8" fill="#022c22" stroke="#fff" stroke-width="2"/>
+              </g>
+              <text x="120" y="178" text-anchor="middle" dominant-baseline="middle" font-family="'JetBrains Mono', monospace">
+                <tspan id="gauge-val" font-size="38" font-weight="800" fill="#022c22">--</tspan>
+                <tspan font-size="14" fill="#9ca3af" dx="2">°C</tspan>
+              </text>
+            </svg>
+            <div class="flex gap-6 text-xs text-gray-500 mt-1">
+              <span>Mín <b class="text-brand-900 mono" id="gauge-min">--</b></span>
+              <span>Máx <b class="text-brand-900 mono" id="gauge-max">--</b></span>
+            </div>
+          </div>
+          <div class="p-5 space-y-4 border-b border-brand-100">
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2 text-gray-500">
+                  <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                  <span class="text-xs font-medium">Umidade</span>
+                </div>
+                <span class="mono text-sm font-bold text-brand-700" id="val-hum">-- <span class="text-[10px] text-gray-400">%</span></span>
+              </div>
+              <div class="h-1 bg-gray-100 rounded overflow-hidden"><div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-hum" style="width:0%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2 text-gray-500">
+                  <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                  <span class="text-xs font-medium">Bateria</span>
+                </div>
+                <span class="mono text-sm font-bold text-brand-700" id="val-bat">-- <span class="text-[10px] text-gray-400">V</span></span>
+              </div>
+              <div class="h-1 bg-gray-100 rounded overflow-hidden"><div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-bat" style="width:0%"></div></div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center gap-2 text-gray-500">
+                  <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+                  <span class="text-xs font-medium">Sinal RF</span>
+                </div>
+                <span class="mono text-sm font-bold text-brand-700" id="val-sig">-- <span class="text-[10px] text-gray-400">dBm</span></span>
+              </div>
+              <div class="h-1 bg-gray-100 rounded overflow-hidden"><div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-sig" style="width:0%"></div></div>
+            </div>
+          </div>
+          <div class="p-5 border-b border-brand-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Histórico · 60 s</span>
+              <span class="mono text-[10px] text-gray-400" id="stat-updated">—</span>
+            </div>
+            <canvas id="spark-temp" class="w-full h-14"></canvas>
+          </div>
+          <div class="p-5">
+            <div class="bg-brand-50 rounded-xl p-3">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-brand-600 mb-1">Perímetro de Segurança</p>
+              <p class="mono text-sm font-bold text-brand-900" id="stat-perim">—</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section id="eventos" class="mt-6 bg-brand-900 rounded-2xl border border-brand-700 overflow-hidden">
+      <div class="flex items-stretch">
+        <div class="bg-brand-950 px-6 py-4 flex items-center gap-3 border-r border-brand-700">
+          <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <div class="text-brand-100">
+            <p class="text-[10px] font-bold uppercase tracking-wider">Eventos ao Vivo</p>
+            <p class="text-xs text-brand-400">RookControl · MQTT</p>
+          </div>
+        </div>
+        <div class="flex-1 px-6 py-4 flex items-center gap-6 overflow-x-auto">
+          <div class="flex items-center gap-6" id="ticker-feed"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ABA DRONES -->
+<div id="tab-drones" class="tab-content hidden">
+  <header class="relative pt-32 pb-8 overflow-hidden">
+    <div class="absolute inset-0 z-0 pointer-events-none">
+      <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-brand-200 opacity-30 blur-3xl"></div>
+      <div class="absolute bottom-0 left-0 -ml-20 w-80 h-80 rounded-full bg-emerald-300 opacity-30 blur-3xl"></div>
+    </div>
+    <div class="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-10">
+        <span class="inline-block py-1 px-3 rounded-full bg-brand-100 text-brand-700 text-sm font-semibold mb-6 tracking-wide uppercase">Flight Operations · MAVLink v2</span>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-brand-900 tracking-tight mb-4 leading-tight">Controle de Drones <br class="hidden md:block"/><span class="text-brand-600">e Missões Autônomas</span></h1>
+        <p class="max-w-2xl mx-auto text-lg text-gray-600">Comando em tempo real da frota RPA via MAVLink assinado. Telemetria, modos de voo, waypoints, semeadura de nuvens e failsafes protegidos pela matriz de autoridade.</p>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Frota</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="dkpi-total">--</p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2L4 22l8-4 8 4L12 2z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Em Voo</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="dkpi-flying">--</p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Nuvens Semeadas</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="dkpi-clouds">0<span class="text-base text-gray-400 ml-1">/ 5</span></p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+          <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4"><svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Bateria Média</p>
+          <p class="text-3xl font-extrabold mono text-brand-900" id="dkpi-battery">--<span class="text-base text-gray-400 ml-1">%</span></p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" style="min-height:720px">
+      <aside class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[720px]">
+        <div class="p-5 border-b border-brand-100">
+          <div class="flex justify-between items-center">
+            <h2 class="text-base font-bold text-brand-900 tracking-tight">Frota</h2>
+            <span class="mono text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-1 rounded" id="df-count">0/0</span>
+          </div>
+          <p class="text-xs text-gray-500 mt-1">Drone ID · status em tempo real</p>
+        </div>
+        <div class="flex-1 overflow-y-auto thin-scroll p-2" id="drone-list"></div>
+      </aside>
+
+      <section class="lg:col-span-6 bg-white rounded-2xl border border-brand-100 shadow-xl overflow-hidden h-[720px] relative">
+        <div class="absolute top-4 left-4 z-[500] bg-brand-900/95 backdrop-blur rounded-xl p-3 border border-brand-700 shadow-lg">
+          <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-2">Legenda</p>
+          <div class="space-y-1.5 text-[11px] mono">
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-3 rounded-full bg-brand-500 border-2 border-white"></div><span>Drone</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-3 rounded-sm bg-brand-900 border-2 border-brand-500"></div><span>Home</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-3 rounded-full bg-white/70 border border-white"></div><span>Nuvem</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-3 rounded-full bg-blue-500/60 border border-blue-300"></div><span>Semeada</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-3 rounded-full bg-amber-400"></div><span>AgI</span></div>
+            <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[2px] rounded" style="background:#0ea5e9"></div><span>Rota</span></div>
+          </div>
+        </div>
+        <div class="absolute top-4 right-4 z-[500] flex gap-2">
+          <button id="dbtn-fit" class="bg-brand-900/95 hover:bg-brand-800 backdrop-blur text-white px-3 py-2 rounded-lg text-xs font-semibold border border-brand-700 shadow-lg transition-colors" title="Ajustar vista">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          </button>
+          <button id="dbtn-wp-mode" class="bg-brand-900/95 hover:bg-brand-800 backdrop-blur text-white px-3 py-2 rounded-lg text-xs font-semibold border border-brand-700 shadow-lg transition-colors flex items-center gap-2" title="Adicionar waypoint clicando no mapa">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <span>Waypoint</span>
+          </button>
+        </div>
+        <div id="drone-map" class="w-full h-full"></div>
+      </section>
+
+      <aside class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[720px]">
+        <div id="dp-empty" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mb-4">
+            <svg class="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 2L4 22l8-4 8 4L12 2z"/></svg>
+          </div>
+          <h3 class="text-sm font-bold text-brand-900 mb-1">Selecione um drone</h3>
+          <p class="text-xs text-gray-500 leading-relaxed">Clique em um drone no mapa ou na lista para acessar o painel de controle.</p>
+        </div>
+        <div id="dp-body" class="flex-1 overflow-y-auto thin-scroll hidden">
+          <div class="p-4 border-b border-brand-100 sticky top-0 bg-white z-10">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h2 class="text-base font-bold text-brand-900 leading-tight truncate" id="dp-name">—</h2>
+                <p class="text-xs text-gray-500 mt-0.5" id="dp-id">—</p>
+              </div>
+              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded flex-shrink-0" id="dp-badge">—</span>
+            </div>
+          </div>
+
+          <div class="p-4 border-b border-brand-100 grid grid-cols-2 gap-2">
+            <div class="telemetry-cell"><div class="label">Altitude</div><div class="value"><span id="dp-alt">--</span><small>m</small></div></div>
+            <div class="telemetry-cell"><div class="label">Velocidade</div><div class="value"><span id="dp-speed">--</span><small>m/s</small></div></div>
+            <div class="telemetry-cell"><div class="label">Heading</div><div class="value"><span id="dp-heading">--</span><small>°</small></div></div>
+            <div class="telemetry-cell"><div class="label">Bateria</div><div class="value"><span id="dp-battery">--</span><small>%</small></div></div>
+            <div class="telemetry-cell"><div class="label">GPS</div><div class="value"><span id="dp-gps">--</span><small>sats</small></div></div>
+            <div class="telemetry-cell"><div class="label">Home</div><div class="value"><span id="dp-home">--</span><small>m</small></div></div>
+          </div>
+
+          <!-- MISSION PANEL (cloud seeding) -->
+          <div id="dp-mission" class="p-4 border-b border-brand-100 hidden">
+            <div class="bg-gradient-to-br from-sky-900 to-cyan-900 rounded-xl p-3 border border-sky-700 shadow-lg">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-cyan-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+                  </svg>
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-cyan-100">Semeadura de Nuvens · Amazônia</span>
+                </div>
+                <span id="dp-mission-phase" class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/30 text-amber-100">—</span>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <div class="text-[9px] uppercase tracking-wider text-cyan-300 font-semibold">Iodeto de Prata (AgI)</div>
+                  <div class="mono text-lg font-bold text-white mt-0.5"><span id="dp-agi-value">--</span><span class="text-xs text-cyan-300 ml-1">kg</span></div>
+                  <div class="h-1 bg-cyan-950 rounded overflow-hidden mt-1"><div id="dp-agi-bar" class="h-full bg-cyan-400 transition-all duration-500" style="width:100%"></div></div>
+                </div>
+                <div>
+                  <div class="text-[9px] uppercase tracking-wider text-cyan-300 font-semibold">Nuvens Semeadas</div>
+                  <div class="mono text-lg font-bold text-white mt-0.5"><span id="dp-clouds-value">0</span><span class="text-xs text-cyan-300 ml-1">/ 5</span></div>
+                  <div class="text-[10px] text-cyan-400 mt-1">Área: <span id="dp-area-value" class="font-bold text-cyan-200">0</span> km²</div>
+                </div>
+              </div>
+              <button id="dp-btn-reset-mission" class="w-full mt-1 py-1.5 rounded bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-100 text-[10px] font-bold transition-colors">Reiniciar Missão</button>
+            </div>
+          </div>
+
+          <div class="p-4 border-b border-brand-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Modo de Voo</span>
+              <span class="mono text-[10px] font-bold text-brand-700" id="dp-mode-label">—</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5" id="dp-modes">
+              <button class="mode-btn" data-mode="STABILIZE">STABILIZE</button>
+              <button class="mode-btn" data-mode="ALT_HOLD">ALT_HOLD</button>
+              <button class="mode-btn" data-mode="LOITER">LOITER</button>
+              <button class="mode-btn" data-mode="AUTO">AUTO</button>
+              <button class="mode-btn" data-mode="GUIDED">GUIDED</button>
+              <button class="mode-btn" data-mode="RTL">RTL</button>
+              <button class="mode-btn" data-mode="LAND">LAND</button>
+            </div>
+          </div>
+
+          <div class="p-4 border-b border-brand-100">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-2">Comandos</span>
+            <div class="grid grid-cols-2 gap-2">
+              <button class="action-btn" id="dbtn-arm"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>Arm</button>
+              <button class="action-btn" id="dbtn-disarm"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>Disarm</button>
+              <button class="action-btn primary" id="dbtn-takeoff"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>Takeoff</button>
+              <button class="action-btn" id="dbtn-land"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>Land</button>
+              <button class="action-btn danger" id="dbtn-rtl" style="grid-column:span 2"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9m0 0l9 9m-9-9v18"/></svg>Return to Launch (RTL)</button>
+              <button class="action-btn" id="dbtn-hold" style="grid-column:span 2"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6"/></svg>Hold Position</button>
+            </div>
+          </div>
+
+          <div class="p-4 border-b border-brand-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Altitude Alvo</span>
+              <span class="mono text-xs font-bold text-brand-700" id="dp-target-alt-label">100 m</span>
+            </div>
+            <input type="range" id="dp-target-alt" min="10" max="400" value="100" step="5" class="w-full accent-emerald-500">
+          </div>
+
+          <div class="p-4 border-b border-brand-100">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Waypoints</span>
+              <span class="mono text-[10px] font-bold text-brand-700" id="dp-wp-count">0</span>
+            </div>
+            <div id="dp-wp-list" class="max-h-28 overflow-y-auto thin-scroll space-y-1 text-xs">
+              <p class="text-gray-400 italic text-center py-2">Sem waypoints</p>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5 mt-2">
+              <button class="action-btn text-[10px] py-1.5" id="dp-btn-add-wp"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>Add</button>
+              <button class="action-btn text-[10px] py-1.5" id="dp-btn-clear-wp"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>Clear</button>
+              <button class="action-btn primary text-[10px] py-1.5" id="dp-btn-upload"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>Upload</button>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 block mb-2">Safety Checks</span>
+            <div class="space-y-1.5 text-xs">
+              <div class="flex justify-between items-center"><span class="text-gray-500">Link MAVLink</span><span class="mono text-[10px] font-bold px-2 py-0.5 rounded bg-brand-50 text-brand-700" id="dp-safety-link">OK</span></div>
+              <div class="flex justify-between items-center"><span class="text-gray-500">GPS Fix</span><span class="mono text-[10px] font-bold px-2 py-0.5 rounded bg-brand-50 text-brand-700" id="dp-safety-gps">3D</span></div>
+              <div class="flex justify-between items-center"><span class="text-gray-500">Sensor Ambiental</span><span class="mono text-[10px] font-bold px-2 py-0.5 rounded bg-brand-50 text-brand-700" id="dp-safety-sensor">OK</span></div>
+              <div class="flex justify-between items-center"><span class="text-gray-500">Bateria</span><span class="mono text-[10px] font-bold px-2 py-0.5 rounded bg-brand-50 text-brand-700" id="dp-safety-battery">OK</span></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="mt-6 bg-brand-900 rounded-2xl border border-brand-700 overflow-hidden">
+      <div class="flex items-stretch">
+        <div class="bg-brand-950 px-6 py-4 flex items-center gap-3 border-r border-brand-700">
+          <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <div class="text-brand-100">
+            <p class="text-[10px] font-bold uppercase tracking-wider">Flight Log</p>
+            <p class="text-xs text-brand-400">MAVLink · RookAll</p>
+          </div>
+        </div>
+        <div class="flex-1 px-6 py-4 flex items-center gap-6 overflow-x-auto">
+          <div class="flex items-center gap-6" id="dfeed"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="bg-brand-950 text-brand-300 py-12 border-t border-brand-900">
+  <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid md:grid-cols-4 gap-8 mb-8">
+      <div class="col-span-2">
+        <div class="flex items-center gap-2 mb-4">
+          <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+          <span class="font-bold text-xl text-white tracking-tight">RookControl</span>
+        </div>
+        <p class="text-sm text-brand-400 max-w-sm">Módulo sensorial e sistema de comando para monitoramento ambiental de drones. Integração nativa com Companion Computer ESP32, ArduPilot/PX4 e arquitetura RookAll.</p>
+      </div>
+      <div>
+        <h4 class="font-bold text-white mb-4">Referências Técnicas</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="#" class="hover:text-brand-500 transition-colors">ESP-IDF v5.1+</a></li>
+          <li><a href="#" class="hover:text-brand-500 transition-colors">MAVLink v2.0</a></li>
+          <li><a href="#" class="hover:text-brand-500 transition-colors">MQTT / TLS</a></li>
+          <li><a href="#" class="hover:text-brand-500 transition-colors">HMAC-SHA256</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 class="font-bold text-white mb-4">Legal</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="#" class="hover:text-brand-500 transition-colors">Licença AGPL-3.0</a></li>
+          <li><a href="#" class="hover:text-brand-500 transition-colors">Política de Segurança</a></li>
+          <li><span class="text-brand-500">RockNewVenture & Citizen Tech</span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="border-t border-brand-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-3 text-sm text-brand-500">
+      <p>&copy; 2030 RookControl | Desenvolvido para RockNewVenture & Citizen Tech Global Solution.</p>
+      <p class="mono text-xs">v1.3.0 · AGPL-3.0</p>
+    </div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ═══════════ ABA AMBIENTAL ═══════════ */
+(function(){
+  const GAUGE_MIN=0,GAUGE_MAX=70,GAUGE_START=135,GAUGE_SWEEP=270,HISTORY_LEN=40;
+  const INITIAL_TOWERS=[
+    {id:'T-01',name:'Torre Norte',loc:'Brasília, DF',lat:-15.7942,lng:-47.8825,temperature:29.4,humidity:58.2,battery:12.4,signal:-72,perimeterKm:6.0},
+    {id:'T-02',name:'Torre Sul',loc:'São Paulo, SP',lat:-23.5505,lng:-46.6333,temperature:47.8,humidity:42.0,battery:12.1,signal:-81,perimeterKm:4.5},
+    {id:'T-03',name:'Estação Amazônia',loc:'Manaus, AM',lat:-3.1190,lng:-60.0217,temperature:33.6,humidity:88.5,battery:12.5,signal:-68,perimeterKm:8.0},
+    {id:'T-04',name:'Estação Nordeste',loc:'Recife, PE',lat:-8.0476,lng:-34.8770,temperature:31.2,humidity:76.0,battery:12.2,signal:-84,perimeterKm:5.5},
+    {id:'T-05',name:'Estação Sul',loc:'Porto Alegre, RS',lat:-30.0346,lng:-51.2177,temperature:56.1,humidity:61.3,battery:11.2,signal:-92,perimeterKm:5.0},
+    {id:'T-06',name:'Estação Cerrado',loc:'Goiânia, GO',lat:-16.6869,lng:-49.2648,temperature:34.8,humidity:45.0,battery:12.3,signal:-76,perimeterKm:5.5}
+  ];
+  const state={towers:[],selected:null,history:new Map(),alerts:[],markers:new Map()};
+  const fmt=(n,d=1)=>Number(n).toFixed(d);
+  const tempStatus=t=>t>=55?'critical':t>=50?'hot':t>=45?'warn':'ok';
+  const tempColor=t=>({ok:'#10b981',warn:'#f59e0b',hot:'#f97316',critical:'#ef4444'})[tempStatus(t)];
+  const tempToAngle=v=>{const n=(v-GAUGE_MIN)/(GAUGE_MAX-GAUGE_MIN);return GAUGE_START+Math.max(0,Math.min(1,n))*GAUGE_SWEEP};
+  const polar=(cx,cy,r,a)=>{const rad=a*Math.PI/180;return[cx+r*Math.cos(rad),cy+r*Math.sin(rad)]};
+
+  function buildGaugeTicks(){const g=document.getElementById('gauge-ticks');if(!g)return;g.innerHTML='';
+    for(let v=0;v<=70;v+=10){const a=tempToAngle(v);const[x1,y1]=polar(120,120,100,a),[x2,y2]=polar(120,120,106,a),[tx,ty]=polar(120,120,118,a);
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('x1',x1);line.setAttribute('y1',y1);line.setAttribute('x2',x2);line.setAttribute('y2',y2);line.setAttribute('stroke','#9ca3af');line.setAttribute('stroke-width','2');g.appendChild(line);
+      const text=document.createElementNS('http://www.w3.org/2000/svg','text');text.setAttribute('x',tx);text.setAttribute('y',ty);text.setAttribute('text-anchor','middle');text.setAttribute('dominant-baseline','middle');text.setAttribute('fill','#9ca3af');text.setAttribute('font-size','9');text.setAttribute('font-family',"'JetBrains Mono', monospace");text.textContent=v;g.appendChild(text);
+    }}
+
+  function drawSparkline(canvas,data){
+    if(!canvas||data.length<2)return;
+    const rect=canvas.getBoundingClientRect(),w=rect.width,h=rect.height,dpr=window.devicePixelRatio||1;
+    if(!w||!h)return;
+    if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){canvas.width=Math.round(w*dpr);canvas.height=Math.round(h*dpr);}
+    const ctx=canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+    const pad=4,vals=data.map(d=>d.temp),min=Math.min(...vals),max=Math.max(...vals),range=max-min||1;
+    const px=i=>pad+(i/(vals.length-1))*(w-pad*2),py=v=>pad+(1-(v-min)/range)*(h-pad*2);
+    const color=tempColor(vals[vals.length-1]);
+    ctx.beginPath();vals.forEach((v,i)=>i===0?ctx.moveTo(px(i),py(v)):ctx.lineTo(px(i),py(v)));ctx.lineTo(px(vals.length-1),h-pad);ctx.lineTo(px(0),h-pad);ctx.closePath();
+    const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,color+'55');grad.addColorStop(1,color+'00');ctx.fillStyle=grad;ctx.fill();
+    ctx.beginPath();vals.forEach((v,i)=>i===0?ctx.moveTo(px(i),py(v)):ctx.lineTo(px(i),py(v)));ctx.strokeStyle=color;ctx.lineWidth=1.6;ctx.stroke();
+    ctx.beginPath();ctx.arc(px(vals.length-1),py(vals[vals.length-1]),2.8,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  }
+
+  function markerIcon(t){const status=tempStatus(t.temperature);return L.divIcon({className:'',html:`<div class="tower-marker ${status==='ok'?'':status}"><div class="bubble"><span class="temp">${fmt(t.temperature,1)}</span><span class="deg">°</span></div><div class="pointer"></div></div>`,iconSize:[56,44],iconAnchor:[28,44]})}
+
+  function renderTowerList(){
+    const body=document.getElementById('tower-list');if(!body)return;body.innerHTML='';
+    const sorted=[...state.towers].sort((a,b)=>b.temperature-a.temperature);
+    for(const t of sorted){
+      const status=tempStatus(t.temperature),color=tempColor(t.temperature),pct=(t.temperature/70)*100;
+      const selected=state.selected===t.id;
+      const badgeMap={ok:'bg-brand-50 text-brand-700',warn:'bg-amber-50 text-amber-700',hot:'bg-orange-50 text-orange-700',critical:'bg-red-50 text-red-700'};
+      const card=document.createElement('div');
+      card.className=`p-3 mb-2 rounded-xl border cursor-pointer transition-all duration-200 ${selected?'bg-brand-50 border-brand-500 shadow-sm':'bg-white border-brand-100 hover:border-brand-300'}`;
+      card.onclick=()=>selectTower(t.id);
+      card.innerHTML=`<div class="flex justify-between items-start mb-2 gap-2"><div class="min-w-0 flex-1"><p class="text-sm font-semibold text-gray-900 truncate">${t.name}</p><p class="mono text-[10px] text-gray-500">${t.id} · ${t.loc}</p></div><span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeMap[status]} flex-shrink-0">${status}</span></div><div class="flex items-baseline gap-1 mb-2"><span class="text-2xl font-extrabold mono" style="color:${color}">${fmt(t.temperature,1)}</span><span class="text-xs text-gray-400">°C</span></div><div class="h-1 bg-gray-100 rounded overflow-hidden mb-2"><div class="h-full rounded transition-all duration-500" style="width:${pct}%;background:${color}"></div></div><div class="flex gap-3 mono text-[10px] text-gray-500"><span>${fmt(t.humidity,0)}%</span><span>${fmt(t.battery,2)}V</span><span>${t.signal} dBm</span></div>`;
+      body.appendChild(card);
+    }
+    document.getElementById('tl-count').textContent=`${state.towers.length}/${state.towers.length}`;
+  }
+
+  let map;
+  function selectTower(id){
+    state.selected=id;const t=state.towers.find(x=>x.id===id);if(!t)return;
+    document.getElementById('lm-empty').classList.add('hidden');
+    document.getElementById('lm-body').classList.remove('hidden');
+    document.getElementById('lm-name').textContent=t.name;
+    document.getElementById('lm-loc').textContent=t.loc;
+    document.getElementById('lm-id').textContent=t.id;
+    if(map)map.flyTo([t.lat,t.lng],Math.max(map.getZoom(),6),{duration:.6});
+    updateDetailPanel();renderTowerList();
+  }
+
+  function updateDetailPanel(){
+    const t=state.towers.find(x=>x.id===state.selected);if(!t)return;
+    const hist=state.history.get(t.id)||[];
+    const angle=tempToAngle(t.temperature);
+    const needle=document.getElementById('gauge-needle');if(needle)needle.style.transform=`rotate(${angle-270}deg)`;
+    const gv=document.getElementById('gauge-val');if(gv){gv.textContent=fmt(t.temperature,1);gv.setAttribute('fill',tempStatus(t.temperature)==='ok'?'#022c22':tempColor(t.temperature));}
+    if(hist.length){const v=hist.map(h=>h.temp);document.getElementById('gauge-min').textContent=fmt(Math.min(...v),1)+'°';document.getElementById('gauge-max').textContent=fmt(Math.max(...v),1)+'°';}
+    document.getElementById('val-hum').innerHTML=`${fmt(t.humidity,1)} <span class="text-[10px] text-gray-400">%</span>`;
+    document.getElementById('bar-hum').style.width=Math.max(0,Math.min(100,t.humidity))+'%';
+    const batPct=Math.max(0,Math.min(100,((t.battery-10.5)/(12.6-10.5))*100));
+    const batColor=t.battery<11?'#ef4444':t.battery<11.4?'#f59e0b':'#10b981';
+    document.getElementById('val-bat').innerHTML=`${fmt(t.battery,2)} <span class="text-[10px] text-gray-400">V</span>`;
+    document.getElementById('bar-bat').style.width=batPct+'%';document.getElementById('bar-bat').style.background=batColor;
+    const sigPct=Math.max(0,Math.min(100,(Math.abs(t.signal)-50)/70*100));
+    const sigColor=t.signal<-100?'#ef4444':t.signal<-90?'#f59e0b':'#10b981';
+    document.getElementById('val-sig').innerHTML=`−${Math.abs(t.signal)} <span class="text-[10px] text-gray-400">dBm</span>`;
+    document.getElementById('bar-sig').style.width=sigPct+'%';document.getElementById('bar-sig').style.background=sigColor;
+    drawSparkline(document.getElementById('spark-temp'),hist);
+    document.getElementById('stat-perim').textContent=t.perimeterKm?fmt(t.perimeterKm,1)+' km':'—';
+    document.getElementById('stat-updated').textContent=new Date().toLocaleTimeString('pt-BR');
+  }
+
+  function updateKPIs(){
+    const temps=state.towers.map(t=>t.temperature),max=Math.max(...temps),avg=temps.reduce((a,b)=>a+b,0)/temps.length;
+    const maxEl=document.getElementById('kpi-max'),avgEl=document.getElementById('kpi-avg');
+    maxEl.innerHTML=`${fmt(max,1)}<span class="text-base text-gray-400 ml-1">°C</span>`;maxEl.style.color=tempStatus(max)==='ok'?'#022c22':tempColor(max);
+    avgEl.innerHTML=`${fmt(avg,1)}<span class="text-base text-gray-400 ml-1">°C</span>`;avgEl.style.color=tempStatus(avg)==='ok'?'#022c22':tempColor(avg);
+    document.getElementById('kpi-towers').innerHTML=`${state.towers.length}<span class="text-base text-gray-400 ml-1">/ ${state.towers.length}</span>`;
+    const active=state.towers.filter(t=>['warn','hot','critical'].includes(tempStatus(t.temperature))).length;
+    const al=document.getElementById('kpi-alerts');al.textContent=active;al.style.color=active>0?'#ef4444':'#022c22';
+  }
+
+  function renderTicker(){
+    const feed=document.getElementById('ticker-feed');if(!feed)return;feed.innerHTML='';
+    const items=state.alerts.slice(0,4);
+    if(!items.length){feed.innerHTML='<span class="text-xs text-brand-400 italic">Aguardando eventos do broker…</span>';return;}
+    const colorMap={info:'text-brand-300',warn:'text-amber-400',hot:'text-orange-400',critical:'text-red-400'};
+    for(const a of items){const el=document.createElement('div');el.className='flex items-center gap-2 whitespace-nowrap';el.innerHTML=`<span class="mono text-[10px] text-brand-500">${a.time.toLocaleTimeString('pt-BR')}</span><span class="text-xs ${colorMap[a.level]||'text-brand-200'}"><b class="text-white">${a.towerName}</b> · ${a.msg}</span>`;feed.appendChild(el);}
+  }
+  function pushAlert(tower,msg,level='info'){state.alerts.unshift({towerName:tower.name,msg,level,time:new Date()});if(state.alerts.length>20)state.alerts.pop();renderTicker();}
+
+  function simulate(){
+    for(const t of state.towers){
+      const prev=tempStatus(t.temperature);
+      t.temperature+=(Math.random()-.48)*.4;t.temperature=Math.max(-5,Math.min(70,t.temperature));
+      if(Math.random()<.015)t.temperature+=3+Math.random()*4;
+      if(Math.random()<.02&&t.temperature>50)t.temperature-=2;
+      t.humidity=Math.max(5,Math.min(98,t.humidity+(Math.random()-.5)*.8));
+      t.battery=Math.max(10.5,Math.min(12.6,t.battery+(Math.random()-.52)*.02));
+      t.signal=Math.max(-110,Math.min(-55,t.signal+Math.round((Math.random()-.5)*2)));
+      const hist=state.history.get(t.id)||[];
+      hist.push({t:Date.now(),temp:t.temperature});if(hist.length>HISTORY_LEN)hist.shift();state.history.set(t.id,hist);
+      const m=state.markers.get(t.id);if(m)m.setIcon(markerIcon(t));
+      const next=tempStatus(t.temperature);
+      if(next!==prev){
+        if(next==='critical')pushAlert(t,`Temperatura crítica ${fmt(t.temperature,1)}°C`,'critical');
+        else if(next==='hot'||next==='warn')pushAlert(t,`Temperatura elevada ${fmt(t.temperature,1)}°C`,'warn');
+        else pushAlert(t,'Temperatura normalizada','info');
+      }
+    }
+    renderTowerList();updateKPIs();if(state.selected)updateDetailPanel();
+  }
+
+  function initAmbiental(){
+    state.towers=INITIAL_TOWERS.map(t=>({...t}));
+    for(const t of state.towers){const hist=[];let v=t.temperature;for(let i=0;i<HISTORY_LEN;i++){v+=(Math.random()-.5)*.3;hist.push({t:Date.now()-(HISTORY_LEN-i)*1500,temp:v});}state.history.set(t.id,hist);}
+    map=L.map('map',{zoomControl:false,attributionControl:false}).setView([-15,-50],4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18,subdomains:'abcd'}).addTo(map);
+    L.control.zoom({position:'bottomright'}).addTo(map);
+    window.__mapAmb=map;
+    document.getElementById('btn-fit').onclick=()=>{const bounds=L.latLngBounds(state.towers.map(t=>[t.lat,t.lng]));map.fitBounds(bounds,{padding:[60,60]});};
+    for(const t of state.towers){const m=L.marker([t.lat,t.lng],{icon:markerIcon(t)}).addTo(map);m.on('click',()=>selectTower(t.id));state.markers.set(t.id,m);}
+    buildGaugeTicks();renderTowerList();updateKPIs();renderTicker();
+    const bounds=L.latLngBounds(state.towers.map(t=>[t.lat,t.lng]));map.fitBounds(bounds,{padding:[60,60]});
+    selectTower(state.towers[0].id);
+    setInterval(simulate,1500);
+  }
+  window.__initAmbiental=initAmbiental;
+})();
+
+/* ═══════════ ABA DRONES + CLOUD SEEDING ═══════════ */
+(function(){
+  // Amazon clouds - seeding targets
+  const AMAZON_CLOUDS=[
+    {id:'C1',lat:-3.0500,lng:-60.1000,radius:3500,seeded:false},
+    {id:'C2',lat:-2.9500,lng:-60.2500,radius:4000,seeded:false},
+    {id:'C3',lat:-2.8500,lng:-60.3500,radius:3200,seeded:false},
+    {id:'C4',lat:-2.9000,lng:-60.5000,radius:4500,seeded:false},
+    {id:'C5',lat:-3.0000,lng:-60.5500,radius:3000,seeded:false}
+  ];
+
+  const DRONES_INIT=[
+    {
+      id:'DR-01',name:'Águia',model:'RPA-LR 4K',status:'flying',armed:true,
+      lat:-15.7801,lng:-47.9292,altitude:120,speed:12.4,heading:45,
+      battery:78,gps:14,gpsFix:'3D',flightMode:'AUTO',
+      home:{lat:-15.7942,lng:-47.8825},
+      waypoints:[{lat:-15.7801,lng:-47.9292,alt:120},{lat:-15.7700,lng:-47.9100,alt:140},{lat:-15.7900,lng:-47.9000,alt:120}],
+      wpIndex:1,trail:[]
+    },
+    {
+      id:'DR-02',name:'Falcão',model:'RPA-LR 4K',status:'armed',armed:true,
+      lat:-23.5505,lng:-46.6333,altitude:0,speed:0,heading:0,
+      battery:100,gps:12,gpsFix:'3D',flightMode:'STABILIZE',
+      home:{lat:-23.5505,lng:-46.6333},waypoints:[],wpIndex:0,trail:[]
+    },
+    {
+      id:'DR-03',name:'Condor',model:'RPA-LR 4K',status:'flying',armed:true,
+      lat:-30.0346,lng:-51.2177,altitude:80,speed:9.2,heading:210,
+      battery:18,gps:10,gpsFix:'3D',flightMode:'RTL',
+      home:{lat:-30.0346,lng:-51.2177},waypoints:[],wpIndex:0,trail:[]
+    },
+    {
+      id:'DR-04',name:'Trovão',model:'RPA-Cloud Seeder',status:'flying',armed:true,
+      lat:-3.1190,lng:-60.0217,altitude:2500,speed:38,heading:300,
+      battery:88,gps:16,gpsFix:'3D',flightMode:'AUTO',
+      home:{lat:-3.1190,lng:-60.0217},
+      waypoints:[
+        {lat:-3.0500,lng:-60.1000,alt:2500,cloudId:'C1'},
+        {lat:-2.9500,lng:-60.2500,alt:2500,cloudId:'C2'},
+        {lat:-2.8500,lng:-60.3500,alt:2500,cloudId:'C3'},
+        {lat:-2.9000,lng:-60.5000,alt:2500,cloudId:'C4'},
+        {lat:-3.0000,lng:-60.5500,alt:2500,cloudId:'C5'}
+      ],
+      wpIndex:0,trail:[],
+      missionType:'cloud-seeding',
+      missionPhase:'en-route',
+      payloadAgI:12.0,payloadMax:12.0,agiPerCloud:2.4,
+      cloudsSeeded:0,seedingPoints:[],areaCoveredKm2:0
+    }
+  ];
+
+  const state={
+    drones:[],selected:null,markers:new Map(),trails:new Map(),homes:new Map(),
+    wpMarkers:[],wpMode:false,alerts:[],map:null,
+    cloudMarkers:new Map(),cloudShapes:new Map(),missionRoute:null,seedMarkers:[]
+  };
+
+  const fmt=(n,d=1)=>Number(n).toFixed(d);
+
+  function droneStatusColor(d){
+    if(d.battery<20)return'critical';
+    if(d.flightMode==='RTL')return'rtl';
+    if(d.status==='flying')return'flying';
+    return'armed';
+  }
+
+  function droneMarkerIcon(d){
+    return L.divIcon({
+      className:'',
+      html:`<div class="drone-marker ${droneStatusColor(d)}"><div class="body"><div class="arrow" style="transform: rotate(${d.heading}deg)"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4 22l8-4 8 4L12 2z"/></svg></div><div class="label">${d.id}</div></div></div>`,
+      iconSize:[32,32],iconAnchor:[16,16]
+    });
+  }
+
+  function cloudMarkerIcon(cloud){
+    return L.divIcon({
+      className:'',
+      html:`<div class="cloud-marker ${cloud.seeded?'seeded':''}"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg></div>`,
+      iconSize:[44,44],iconAnchor:[22,22]
+    });
+  }
+
+  function renderFleet(){
+    const body=document.getElementById('drone-list');if(!body)return;body.innerHTML='';
+    for(const d of state.drones){
+      const selected=state.selected===d.id;
+      const cls=droneStatusColor(d);
+      const badgeMap={flying:'bg-brand-50 text-brand-700',armed:'bg-blue-50 text-blue-700',rtl:'bg-amber-50 text-amber-700',critical:'bg-red-50 text-red-700'};
+      const card=document.createElement('div');
+      card.className=`p-3 mb-2 rounded-xl border cursor-pointer transition-all duration-200 ${selected?'bg-brand-50 border-brand-500 shadow-sm':'bg-white border-brand-100 hover:border-brand-300'}`;
+      card.onclick=()=>selectDrone(d.id);
+      const missionBadge = d.missionType==='cloud-seeding' ? `<span class="text-[8px] font-bold uppercase tracking-wider px-1 py-0.5 rounded bg-cyan-100 text-cyan-700 ml-1">🌧 SEED</span>` : '';
+      card.innerHTML=`<div class="flex justify-between items-start mb-2 gap-2"><div class="min-w-0 flex-1"><p class="text-sm font-semibold text-gray-900 truncate">${d.name}${missionBadge}</p><p class="mono text-[10px] text-gray-500">${d.id} · ${d.model}</p></div><span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeMap[cls]} flex-shrink-0">${d.flightMode}</span></div><div class="grid grid-cols-3 gap-1 mono text-[10px]"><div><span class="text-gray-400">ALT</span> <span class="font-bold text-gray-900">${fmt(d.altitude,0)}m</span></div><div><span class="text-gray-400">SPD</span> <span class="font-bold text-gray-900">${fmt(d.speed,1)}m/s</span></div><div><span class="text-gray-400">BAT</span> <span class="font-bold ${d.battery<20?'text-red-600':'text-gray-900'}">${fmt(d.battery,0)}%</span></div></div>`;
+      body.appendChild(card);
+    }
+    document.getElementById('df-count').textContent=`${state.drones.length}/${state.drones.length}`;
+  }
+
+  function selectDrone(id){
+    state.selected=id;const d=state.drones.find(x=>x.id===id);if(!d)return;
+    document.getElementById('dp-empty').classList.add('hidden');
+    document.getElementById('dp-body').classList.remove('hidden');
+    document.getElementById('dp-name').textContent=d.name;
+    document.getElementById('dp-id').textContent=`${d.id} · ${d.model}`;
+    if(state.map)state.map.flyTo([d.lat,d.lng],Math.max(state.map.getZoom(),9),{duration:.6});
+    updateControlPanel();renderFleet();updateWaypointsOnMap();
+  }
+
+  function updateControlPanel(){
+    const d=state.drones.find(x=>x.id===state.selected);if(!d)return;
+    const cls=droneStatusColor(d);
+    const badgeCls={flying:'bg-brand-100 text-brand-700',armed:'bg-blue-100 text-blue-700',rtl:'bg-amber-100 text-amber-700',critical:'bg-red-100 text-red-700'};
+    const badge=document.getElementById('dp-badge');
+    badge.textContent=d.status==='flying'?'FLYING':d.status==='armed'?'ARMED':d.status.toUpperCase();
+    badge.className=`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded flex-shrink-0 ${badgeCls[cls]}`;
+
+    document.getElementById('dp-alt').textContent=fmt(d.altitude,1);
+    document.getElementById('dp-speed').textContent=fmt(d.speed,1);
+    document.getElementById('dp-heading').textContent=fmt(d.heading,0);
+    document.getElementById('dp-battery').textContent=fmt(d.battery,0);
+    document.getElementById('dp-gps').textContent=d.gps;
+    const homeDist=Math.round(Math.hypot((d.lat-d.home.lat)*111000,(d.lng-d.home.lng)*111000*Math.cos(d.lat*Math.PI/180)));
+    document.getElementById('dp-home').textContent=homeDist;
+
+    document.getElementById('dp-mode-label').textContent=d.flightMode;
+    document.querySelectorAll('#dp-modes .mode-btn').forEach(b=>b.classList.toggle('active',b.dataset.mode===d.flightMode));
+
+    const flying=d.status==='flying',armed=d.armed,onGround=d.altitude<2;
+    document.getElementById('dbtn-arm').disabled=armed||flying;
+    document.getElementById('dbtn-disarm').disabled=!armed||flying||!onGround;
+    document.getElementById('dbtn-takeoff').disabled=!armed||flying||d.battery<20;
+    document.getElementById('dbtn-land').disabled=!flying;
+    document.getElementById('dbtn-rtl').disabled=!flying;
+    document.getElementById('dbtn-hold').disabled=!flying||d.flightMode==='LOITER';
+
+    // Alt slider
+    const firstWpAlt = (d.waypoints[0] && d.waypoints[0].alt) || 100;
+    document.getElementById('dp-target-alt').value=Math.min(400,Math.max(10,firstWpAlt));
+    document.getElementById('dp-target-alt-label').textContent=`${document.getElementById('dp-target-alt').value} m`;
+
+    // Waypoints list
+    const wpList=document.getElementById('dp-wp-list');wpList.innerHTML='';
+    if(d.waypoints.length===0){wpList.innerHTML='<p class="text-gray-400 italic text-center py-2">Sem waypoints</p>';}
+    else{
+      d.waypoints.forEach((wp,i)=>{
+        const el=document.createElement('div');
+        el.className='flex items-center justify-between bg-gray-50 rounded px-2 py-1';
+        el.innerHTML=`<div class="flex items-center gap-2"><span class="w-5 h-5 bg-brand-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center mono">${i+1}</span><span class="mono text-[10px] text-gray-600">${wp.lat.toFixed(4)}, ${wp.lng.toFixed(4)}</span></div><span class="mono text-[10px] text-gray-500">${wp.alt}m</span>`;
+        wpList.appendChild(el);
+      });
+    }
+    document.getElementById('dp-wp-count').textContent=d.waypoints.length;
+
+    // Safety
+    const setSafety=(id,ok,msg)=>{const el=document.getElementById(id);el.textContent=msg;el.className=`mono text-[10px] font-bold px-2 py-0.5 rounded ${ok?'bg-brand-50 text-brand-700':'bg-red-50 text-red-700'}`;};
+    setSafety('dp-safety-link',true,'OK');
+    setSafety('dp-safety-gps',d.gpsFix==='3D',d.gpsFix);
+    setSafety('dp-safety-sensor',true,'OK');
+    setSafety('dp-safety-battery',d.battery>=20,d.battery>=20?'OK':'LOW');
+
+    // Mission panel
+    const missionPanel=document.getElementById('dp-mission');
+    if(d.missionType==='cloud-seeding'){
+      missionPanel.classList.remove('hidden');
+      const agiPct=(d.payloadAgI/d.payloadMax)*100;
+      document.getElementById('dp-agi-value').textContent=fmt(d.payloadAgI,1);
+      document.getElementById('dp-agi-bar').style.width=agiPct+'%';
+      document.getElementById('dp-clouds-value').textContent=d.cloudsSeeded;
+      document.getElementById('dp-area-value').textContent=Math.round(d.areaCoveredKm2);
+      const phaseEl=document.getElementById('dp-mission-phase');
+      const phaseLabels={
+        'preparing':{l:'PREP',c:'bg-slate-500/30 text-slate-100'},
+        'en-route':{l:'EM ROTA',c:'bg-amber-500/30 text-amber-100'},
+        'seeding':{l:'SEMEANDO',c:'bg-cyan-500/30 text-cyan-100'},
+        'completed':{l:'CONCLUÍDO',c:'bg-emerald-500/30 text-emerald-100'},
+        'aborted':{l:'ABORTADO',c:'bg-red-500/30 text-red-100'}
+      };
+      const pi=phaseLabels[d.missionPhase]||phaseLabels['preparing'];
+      phaseEl.textContent=pi.l;phaseEl.className=`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${pi.c}`;
+    } else {
+      missionPanel.classList.add('hidden');
+    }
+  }
+
+  function pushDroneAlert(drone,msg,level='info'){
+    state.alerts.unshift({droneName:drone.name,msg,level,time:new Date()});
+    if(state.alerts.length>20)state.alerts.pop();renderDroneFeed();
+  }
+
+  function renderDroneFeed(){
+    const feed=document.getElementById('dfeed');if(!feed)return;feed.innerHTML='';
+    const items=state.alerts.slice(0,4);
+    if(!items.length){feed.innerHTML='<span class="text-xs text-brand-400 italic">Aguardando eventos MAVLink…</span>';return;}
+    const colorMap={info:'text-brand-300',warn:'text-amber-400',critical:'text-red-400'};
+    for(const a of items){const el=document.createElement('div');el.className='flex items-center gap-2 whitespace-nowrap';el.innerHTML=`<span class="mono text-[10px] text-brand-500">${a.time.toLocaleTimeString('pt-BR')}</span><span class="text-xs ${colorMap[a.level]||'text-brand-200'}"><b class="text-white">${a.droneName}</b> · ${a.msg}</span>`;feed.appendChild(el);}
+  }
+
+  function updateKPIs(){
+    const total=state.drones.length;
+    const flying=state.drones.filter(d=>d.status==='flying').length;
+    const amazon=state.drones.find(d=>d.missionType==='cloud-seeding');
+    const seeded=amazon?amazon.cloudsSeeded:0;
+    const avgBat=state.drones.reduce((a,d)=>a+d.battery,0)/total;
+    document.getElementById('dkpi-total').textContent=total;
+    document.getElementById('dkpi-flying').textContent=flying;
+    const cl=document.getElementById('dkpi-clouds');
+    if(cl)cl.innerHTML=`${seeded}<span class="text-base text-gray-400 ml-1">/ ${AMAZON_CLOUDS.length}</span>`;
+    document.getElementById('dkpi-battery').innerHTML=`${fmt(avgBat,0)}<span class="text-base text-gray-400 ml-1">%</span>`;
+  }
+
+  function updateDroneOnMap(d){
+    const m=state.markers.get(d.id);
+    if(m){m.setLatLng([d.lat,d.lng]);m.setIcon(droneMarkerIcon(d));}
+    const trail=state.trails.get(d.id);
+    if(trail){trail.setLatLngs(d.trail.map(p=>[p.lat,p.lng]));trail.setStyle({color:droneStatusColor(d)==='critical'?'#ef4444':'#10b981'});}
+  }
+
+  function updateWaypointsOnMap(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!state.map)return;
+    state.wpMarkers.forEach(m=>state.map.removeLayer(m));state.wpMarkers=[];
+    if(!d)return;
+    d.waypoints.forEach((wp,i)=>{
+      const m=L.marker([wp.lat,wp.lng],{icon:L.divIcon({className:'',html:`<div class="wp-marker">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).addTo(state.map);
+      state.wpMarkers.push(m);
+    });
+  }
+
+  function arm(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||d.armed||d.status==='flying')return;
+    d.armed=true;d.status='armed';
+    pushDroneAlert(d,'Armed. Motores em idle.','info');
+    updateControlPanel();renderFleet();updateDroneOnMap(d);
+  }
+
+  function disarm(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||!d.armed||d.altitude>=2)return;
+    d.armed=false;d.status='idle';
+    pushDroneAlert(d,'Disarmed.','info');
+    updateControlPanel();renderFleet();updateDroneOnMap(d);
+  }
+
+  function takeoff(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||!d.armed||d.battery<20)return;
+    const alt=parseInt(document.getElementById('dp-target-alt').value,10)||100;
+    d.flightMode='GUIDED';d.status='flying';d.altitude=2;d.speed=2.5;
+    if(d.waypoints.length===0)d.waypoints=[{lat:d.lat,lng:d.lng,alt}];
+    d.waypoints[0].alt=alt;
+    d.trail=[{lat:d.lat,lng:d.lng}];
+    pushDroneAlert(d,`Takeoff → ${alt} m`,'info');
+    updateControlPanel();renderFleet();updateDroneOnMap(d);updateWaypointsOnMap();
+  }
+
+  function land(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||d.status!=='flying')return;
+    d.flightMode='LAND';
+    pushDroneAlert(d,'Land mode iniciado.','warn');
+    updateControlPanel();renderFleet();
+  }
+
+  function rtl(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||d.status!=='flying')return;
+    d.flightMode='RTL';
+    pushDroneAlert(d,'RTL ativado. Retornando ao home.','warn');
+    updateControlPanel();renderFleet();
+  }
+
+  function hold(){
+    const d=state.drones.find(x=>x.id===state.selected);
+    if(!d||d.status!=='flying')return;
+    d.flightMode='LOITER';
+    pushDroneAlert(d,'Hold. Posição mantida.','info');
+    updateControlPanel();renderFleet();
+  }
+
+  function setMode(mode){
+    const d=state.drones.find(x=>x.id===state.selected);if(!d)return;
+    d.flightMode=mode;
+    pushDroneAlert(d,`Flight mode → ${mode}`,'info');
+    updateControlPanel();renderFleet();
+  }
+
+  function addWaypointToSelected(latlng){
+    const d=state.drones.find(x=>x.id===state.selected);if(!d)return;
+    const alt=parseInt(document.getElementById('dp-target-alt').value,10)||100;
+    d.waypoints.push({lat:latlng.lat,lng:latlng.lng,alt});
+    pushDroneAlert(d,`Waypoint #${d.waypoints.length} adicionado.`,'info');
+    updateControlPanel();updateWaypointsOnMap();
+  }
+
+  function clearWaypoints(){
+    const d=state.drones.find(x=>x.id===state.selected);if(!d)return;
+    d.waypoints=[];d.wpIndex=0;
+    pushDroneAlert(d,'Waypoints limpos.','info');
+    updateControlPanel();updateWaypointsOnMap();
+  }
+
+  function uploadMission(){
+    const d=state.drones.find(x=>x.id===state.selected);if(!d)return;
+    if(d.waypoints.length===0){pushDroneAlert(d,'Sem waypoints para enviar.','warn');return;}
+    if(!d.armed){pushDroneAlert(d,'Arm necessário antes do upload.','warn');return;}
+    d.flightMode='AUTO';d.status='flying';
+    if(d.altitude<2)d.altitude=2;
+    d.wpIndex=1;
+    pushDroneAlert(d,`Missão enviada: ${d.waypoints.length} waypoints · AUTO`,'info');
+    updateControlPanel();renderFleet();
+  }
+
+  function seedCloud(d,cloud){
+    if(cloud.seeded)return;
+    if(d.payloadAgI<d.agiPerCloud)return;
+    cloud.seeded=true;
+    d.payloadAgI-=d.agiPerCloud;
+    d.cloudsSeeded++;
+    d.areaCoveredKm2+=Math.PI*Math.pow(cloud.radius/1000,2);
+    d.seedingPoints.push({lat:cloud.lat,lng:cloud.lng,id:cloud.id,time:Date.now()});
+    pushDroneAlert(d,`🌧 AgI liberado sobre ${cloud.id} (${d.agiPerCloud} kg)`,'info');
+
+    // Update cloud marker
+    const marker=state.cloudMarkers.get(cloud.id);
+    if(marker)marker.setIcon(cloudMarkerIcon(cloud));
+
+    // Emit burst point
+    if(state.map){
+      const sp=L.marker([cloud.lat,cloud.lng],{icon:L.divIcon({className:'',html:`<div class="seed-point"></div>`,iconSize:[16,16],iconAnchor:[8,8]})}).addTo(state.map);
+      setTimeout(()=>{if(state.map&&state.map.hasLayer(sp))state.map.removeLayer(sp);},1700);
+    }
+  }
+
+  function stepDrone(d){
+    if(d.status!=='flying'||d.altitude<0.5){
+      if(d.status==='flying'&&d.altitude<=0.5){
+        d.status='armed';d.altitude=0;d.speed=0;d.flightMode='STABILIZE';
+        pushDroneAlert(d,'Pouso concluído.','info');
+      }
+      return;
+    }
+
+    d.battery=Math.max(0,d.battery-0.02-(d.speed*0.005));
+    if(d.battery<20&&d.flightMode!=='RTL'&&d.flightMode!=='LAND'){
+      d.flightMode='RTL';
+      pushDroneAlert(d,'Bateria crítica — RTL automático.','critical');
+    }
+    if(d.battery<5&&d.flightMode!=='LAND'){
+      d.flightMode='LAND';
+      pushDroneAlert(d,'Bateria crítica — Land forçado.','critical');
+    }
+
+    let target=null;
+    if(d.flightMode==='AUTO'&&d.waypoints.length>0){
+      const wp=d.waypoints[Math.min(d.wpIndex,d.waypoints.length-1)];
+      target={lat:wp.lat,lng:wp.lng,alt:wp.alt};
+      const dist=Math.hypot((wp.lat-d.lat)*111000,(wp.lng-d.lng)*111000*Math.cos(d.lat*Math.PI/180));
+      if(dist<15){
+        if(d.wpIndex<d.waypoints.length-1){
+          d.wpIndex++;
+          pushDroneAlert(d,`Waypoint ${d.wpIndex}/${d.waypoints.length} alcançado.`,'info');
+        }else{
+          d.flightMode='LOITER';
+          pushDroneAlert(d,'Missão concluída. Loiter.','info');
+        }
+      }
+    }else if(d.flightMode==='RTL'){
+      target={lat:d.home.lat,lng:d.home.lng,alt:30};
+      const dist=Math.hypot((d.home.lat-d.lat)*111000,(d.home.lng-d.lng)*111000*Math.cos(d.lat*Math.PI/180));
+      if(dist<10&&d.altitude<=31){
+        d.flightMode='LAND';
+        pushDroneAlert(d,'Sobre o home. Descendo.','warn');
+      }
+    }else if(d.flightMode==='LAND'){
+      d.altitude=Math.max(0,d.altitude-2);
+      d.speed=Math.max(0,d.speed-0.2);
+      return;
+    }else if(d.flightMode==='LOITER'){
+      d.speed=Math.max(0,d.speed-0.3);
+    }else if(d.flightMode==='GUIDED'){
+      const targetAlt=(d.waypoints[0]&&d.waypoints[0].alt)||100;
+      if(d.altitude<targetAlt)d.altitude=Math.min(targetAlt,d.altitude+40);
+      d.speed=Math.max(0,d.speed-0.1);
+    }
+
+    if(target){
+      const dLat=target.lat-d.lat,dLng=target.lng-d.lng;
+      const distM=Math.hypot(dLat*111000,dLng*111000*Math.cos(d.lat*Math.PI/180));
+      if(distM>1){
+        const heading=Math.atan2(dLng,dLat)*180/Math.PI;
+        d.heading=(heading+360)%360;
+        // Move proportional to speed × tick × demo multiplier
+        const tickSec=0.8, demoMult=20;
+        const stepM=Math.min(distM,Math.max(d.speed,15)*tickSec*demoMult);
+        const ratio=stepM/distM;
+        d.lat+=dLat*ratio;
+        d.lng+=dLng*ratio;
+        if(target.alt>d.altitude)d.altitude=Math.min(target.alt,d.altitude+30);
+        else if(target.alt<d.altitude)d.altitude=Math.max(target.alt,d.altitude-25);
+      }
+    }
+
+    // Cloud seeding check
+    if(d.missionType==='cloud-seeding'&&d.status==='flying'){
+      for(const cloud of AMAZON_CLOUDS){
+        if(cloud.seeded)continue;
+        const distCloud=Math.hypot((cloud.lat-d.lat)*111000,(cloud.lng-d.lng)*111000*Math.cos(d.lat*Math.PI/180));
+        if(distCloud<cloud.radius)seedCloud(d,cloud);
+      }
+      if(d.cloudsSeeded>=AMAZON_CLOUDS.length)d.missionPhase='completed';
+      else if(d.cloudsSeeded>0)d.missionPhase='seeding';
+    }
+
+    d.trail.push({lat:d.lat,lng:d.lng});
+    if(d.trail.length>60)d.trail.shift();
+  }
+
+  function simulateDrones(){
+    for(const d of state.drones){stepDrone(d);updateDroneOnMap(d);}
+    renderFleet();updateKPIs();
+    if(state.selected)updateControlPanel();
+  }
+
+  function initDrones(){
+    state.drones=DRONES_INIT.map(d=>({...d,trail:[{lat:d.lat,lng:d.lng}]}));
+    renderFleet();updateKPIs();renderDroneFeed();
+
+    document.getElementById('dbtn-arm').onclick=arm;
+    document.getElementById('dbtn-disarm').onclick=disarm;
+    document.getElementById('dbtn-takeoff').onclick=takeoff;
+    document.getElementById('dbtn-land').onclick=land;
+    document.getElementById('dbtn-rtl').onclick=rtl;
+    document.getElementById('dbtn-hold').onclick=hold;
+    document.querySelectorAll('#dp-modes .mode-btn').forEach(btn=>{btn.onclick=()=>setMode(btn.dataset.mode);});
+    const slider=document.getElementById('dp-target-alt');
+    slider.oninput=()=>{document.getElementById('dp-target-alt-label').textContent=`${slider.value} m`;};
+    document.getElementById('dp-btn-add-wp').onclick=()=>{
+      if(!state.selected)return;
+      state.wpMode=true;
+      document.getElementById('dbtn-wp-mode').style.background='#059669';
+      document.getElementById('dbtn-wp-mode').style.color='#fff';
+      pushDroneAlert({name:'Mapa'},'Clique no mapa para adicionar waypoint.','info');
+    };
+    document.getElementById('dp-btn-clear-wp').onclick=clearWaypoints;
+    document.getElementById('dp-btn-upload').onclick=uploadMission;
+
+    // Reset mission button
+    document.getElementById('dp-btn-reset-mission').onclick=()=>{
+      const d=state.drones.find(x=>x.id===state.selected);
+      if(!d||d.missionType!=='cloud-seeding')return;
+      AMAZON_CLOUDS.forEach(c=>c.seeded=false);
+      d.lat=d.home.lat;d.lng=d.home.lng;d.altitude=2500;d.heading=300;
+      d.wpIndex=0;d.payloadAgI=d.payloadMax;d.cloudsSeeded=0;d.seedingPoints=[];
+      d.areaCoveredKm2=0;d.missionPhase='en-route';d.flightMode='AUTO';d.status='flying';
+      d.trail=[{lat:d.home.lat,lng:d.home.lng}];
+      // Reset cloud markers
+      AMAZON_CLOUDS.forEach(c=>{const m=state.cloudMarkers.get(c.id);if(m)m.setIcon(cloudMarkerIcon(c));});
+      pushDroneAlert(d,'Missão reiniciada — payload e alvos resetados.','info');
+      updateControlPanel();updateDroneOnMap(d);updateWaypointsOnMap();
+    };
+
+    setInterval(simulateDrones,800);
+  }
+
+  function ensureDroneMap(){
+    if(state.map){
+      setTimeout(()=>state.map.invalidateSize(),50);
+      // Re-select Amazon drone if nothing selected
+      if(!state.selected){
+        const amazon=state.drones.find(d=>d.id==='DR-04');
+        if(amazon)setTimeout(()=>selectDrone(amazon.id),100);
+      }
+      return;
+    }
+
+    state.map=L.map('drone-map',{zoomControl:false,attributionControl:false}).setView([-3.05,-60.30],9);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:18,subdomains:'abcd'}).addTo(state.map);
+    L.control.zoom({position:'bottomright'}).addTo(state.map);
+    window.__mapDrone=state.map;
+
+    // Mission route (drawn first so clouds/drone sit on top)
+    const amazon=state.drones.find(d=>d.id==='DR-04');
+    if(amazon){
+      const routePts=[[amazon.home.lat,amazon.home.lng],...amazon.waypoints.map(wp=>[wp.lat,wp.lng]),[amazon.home.lat,amazon.home.lng]];
+      state.missionRoute=L.polyline(routePts,{color:'#0ea5e9',weight:2,opacity:.65,dashArray:'8 6'}).addTo(state.map);
+    }
+
+    // Clouds
+    AMAZON_CLOUDS.forEach(c=>{
+      const shape=L.circle([c.lat,c.lng],{radius:c.radius,color:'#93c5fd',weight:1,opacity:.35,fillColor:'#dbeafe',fillOpacity:.08}).addTo(state.map);
+      state.cloudShapes.set(c.id,shape);
+      const m=L.marker([c.lat,c.lng],{icon:cloudMarkerIcon(c)}).addTo(state.map);
+      state.cloudMarkers.set(c.id,m);
+    });
+
+    // Drones
+    for(const d of state.drones){
+      const m=L.marker([d.lat,d.lng],{icon:droneMarkerIcon(d)}).addTo(state.map);
+      m.on('click',()=>selectDrone(d.id));
+      state.markers.set(d.id,m);
+      const trail=L.polyline(d.trail.map(p=>[p.lat,p.lng]),{color:'#10b981',weight:2,opacity:.7,dashArray:'4 4'}).addTo(state.map);
+      state.trails.set(d.id,trail);
+      const home=L.marker([d.home.lat,d.home.lng],{icon:L.divIcon({className:'',html:`<div class="home-marker">H</div>`,iconSize:[26,26],iconAnchor:[13,13]})}).addTo(state.map);
+      state.homes.set(d.id,home);
+    }
+
+    document.getElementById('dbtn-fit').onclick=()=>{
+      if(amazon){
+        const bounds=L.latLngBounds([[amazon.home.lat,amazon.home.lng],...amazon.waypoints.map(wp=>[wp.lat,wp.lng])]);
+        state.map.fitBounds(bounds,{padding:[60,60]});
+      }else{
+        const bounds=L.latLngBounds(state.drones.map(d=>[d.lat,d.lng]));
+        state.map.fitBounds(bounds,{padding:[60,60]});
+      }
+    };
+    document.getElementById('dbtn-wp-mode').onclick=()=>{
+      if(!state.selected){pushDroneAlert({name:'Sistema'},'Selecione um drone primeiro.','warn');return;}
+      state.wpMode=!state.wpMode;
+      const btn=document.getElementById('dbtn-wp-mode');
+      btn.style.background=state.wpMode?'#059669':'';
+      btn.style.color=state.wpMode?'#fff':'';
+      pushDroneAlert({name:'Mapa'},state.wpMode?'Modo waypoint ativo — clique no mapa.':'Modo waypoint desativado.','info');
+    };
+    state.map.on('click',(e)=>{if(state.wpMode&&state.selected)addWaypointToSelected(e.latlng);});
+
+    // Focus on Amazon mission
+    if(amazon){
+      const bounds=L.latLngBounds([[amazon.home.lat,amazon.home.lng],...amazon.waypoints.map(wp=>[wp.lat,wp.lng])]);
+      state.map.fitBounds(bounds,{padding:[60,60]});
+      selectDrone(amazon.id);
+    }else{
+      const bounds=L.latLngBounds(state.drones.map(d=>[d.lat,d.lng]));
+      state.map.fitBounds(bounds,{padding:[60,60]});
+      selectDrone(state.drones[0].id);
+    }
+  }
+
+  window.__initDrones=initDrones;
+  window.__ensureDroneMap=ensureDroneMap;
+})();
+
+/* ═══════════ TAB SWITCHER + BOOTSTRAP ═══════════ */
+function switchTab(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.toggle('hidden',c.id!==`tab-${name}`));
+  if(name==='drones'&&window.__ensureDroneMap){
+    requestAnimationFrame(()=>{
+      window.__ensureDroneMap();
+      setTimeout(()=>{if(window.__mapDrone)window.__mapDrone.invalidateSize();},80);
+    });
+  }
+  if(name==='ambiental'&&window.__mapAmb){
+    setTimeout(()=>window.__mapAmb.invalidateSize(),80);
+  }
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{btn.addEventListener('click',()=>switchTab(btn.dataset.tab));});
+
+function updateClock(){const el=document.getElementById('clock');if(el)el.textContent=new Date().toLocaleTimeString('pt-BR');}
+setInterval(updateClock,1000);updateClock();
+
+window.addEventListener('DOMContentLoaded',()=>{
+  if(window.__initAmbiental)window.__initAmbiental();
+  if(window.__initDrones)window.__initDrones();
+});
+</script>
+</body>
+</html>
