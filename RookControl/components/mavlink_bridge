@@ -1,0 +1,10 @@
+esp_err_t mavlink_bridge_init(void);
+esp_err_t mavlink_bridge_send_rtl(void);            // bloqueante até 50 ms
+bool      mavlink_fc_not_in_failsafe(void);         // thread-safe
+bool      mavlink_link_ok(void);                    // heartbeat < 2 s
+esp_err_t mavlink_bridge_get_latest(telemetry_t *out);
+
+(* esp_err_t mqtt_transport_init(void);
+esp_err_t mqtt_publish_env(const char *body, const char *hmac_hex);   // QoS 1
+esp_err_t mqtt_publish_event(const char *body, const char *hmac_hex);
+bool      mqtt_connected(void); *)
