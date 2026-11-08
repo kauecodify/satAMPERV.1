@@ -49,12 +49,30 @@ O RookControl foi projetado para "Plug and Play" com a arquitetura ESP32, operan
 A integração é feita através de um driver dedicado que respeita as regras de alocação estática de memória do sistema.
 
 ### 1. Estrutura de Arquivos Adicionada
-```text
+
+---
+
+  ```
 iot-device/
-└── src/
-    ├── rookcontrol_driver.h   # Definições de registradores e structs de dados
-    └── rookcontrol_driver.cpp # Lógica de leitura I2C e compensação
-```
+├── CMakeLists.txt
+├── main/
+│   ├── main.c
+│   └── app_config.h
+├── components/
+│   ├── rookcontrol/
+│   │   ├── include/rookcontrol.h
+│   │   ├── rookcontrol_driver.cpp
+│   │   └── test/
+│   ├── failsafe_policy/
+│   │   ├── include/failsafe.h
+│   │   └── failsafe.cpp
+│   ├── mavlink_bridge/
+│   ├── mqtt_transport/
+│   └── event_log/
+└── test_host/
+  ```
+
+---
 
 ### 2. Configuração (`config_drone.h`)
 Adicione os limites operacionais específicos para a missão do RookControl:
