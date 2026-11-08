@@ -72,6 +72,18 @@ iot-device/
 └── test_host/
   ```
 
+
+Componente	Camada	Responsabilidade	Depende de HW?
+main	L0 / L3	Bootstrap, inicialização do sistema (NVS/I2C/UART) e criação de tasks.	Sim
+app_config.h	—	Configuração de missão (definição de pinos, limites operacionais).	Não
+rookcontrol	L1 + L2	Driver I2C do sensor + interface IRookSensor.	Sim 
+(isolado em adapter)
+failsafe_policy	L4	Máquina de Estados Finita (FSM) de decisão pura, sem I/O.	Não
+mavlink_bridge	L1	Adapter MAVLink v2 (fluxo rx/tx + assinatura de pacotes).	Sim
+mqtt_transport	L1	Adapter MQTT/TLS com lógica de retry e backpressure.	Sim
+event_log	L1	Adapter NVS para persistência de eventos assinados.	Sim
+test_host	—	Testes unitários utilizando GTest executados diretamente no PC.	Não
+
 ---
 
 ### 2. Configuração (`config_drone.h`)
