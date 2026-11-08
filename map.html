@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="scroll-smooth">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RookControl | Monitoramento Ambiental em Tempo Real</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            300: '#6ee7b7',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#064e3b',
+                            900: '#022c22',
+                            950: '#011a14'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+        }
+        .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+        /* Mapa */
+        #map { width: 100%; height: 100%; min-height: 560px; background: #022c22; }
+        .leaflet-container { background: #022c22; font-family: 'Inter', sans-serif; }
+        .leaflet-control-attribution { display: none !important; }
+        .leaflet-popup-content-wrapper {
+            background: #022c22; color: #ecfdf5;
+            border: 1px solid #065f46; border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,.35);
+        }
+        .leaflet-popup-tip { background: #022c22; border: 1px solid #065f46; }
+        .leaflet-bar a {
+            background: #022c22 !important; color: #d1fae5 !important;
+            border-color: #065f46 !important;
+        }
+        .leaflet-bar a:hover { background: #064e3b !important; }
+
+        /* Marcadores minimalistas */
+        .tower-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .tower-marker .bubble {
+            background: #ffffff; color: #022c22;
+            padding: 4px 8px; border-radius: 8px;
+            border: 2px solid #10b981;
+            box-shadow: 0 4px 12px rgba(2, 44, 34, .35);
+            display: flex; align-items: baseline; gap: 2px;
+            transition: transform .2s;
+        }
+        .tower-marker:hover .bubble { transform: scale(1.08); }
+        .tower-marker .temp { font-size: 13px; font-weight: 700; line-height: 1; }
+        .tower-marker .deg { font-size: 9px; font-weight: 600; opacity: .7; }
+        .tower-marker .pointer {
+            width: 0; height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 7px solid #10b981;
+            margin-top: -1px;
+        }
+        .tower-marker.warn .bubble { border-color: #f59e0b; }
+        .tower-marker.warn .pointer { border-top-color: #f59e0b; }
+        .tower-marker.hot .bubble { border-color: #f97316; }
+        .tower-marker.hot .pointer { border-top-color: #f97316; }
+        .tower-marker.critical .bubble {
+            border-color: #ef4444; color: #7f1d1d;
+            animation: pulse-crit 1.4s cubic-bezier(.455,.03,.515,.955) infinite;
+        }
+        .tower-marker.critical .pointer { border-top-color: #ef4444; }
+        @keyframes pulse-crit {
+            0%,100% { box-shadow: 0 4px 12px rgba(2,44,34,.35), 0 0 0 0 rgba(239,68,68,.55); }
+            50% { box-shadow: 0 4px 12px rgba(2,44,34,.35), 0 0 0 12px rgba(239,68,68,0); }
+        }
+
+        /* Gauge */
+        .gauge-needle { transform-origin: 120px 120px; transition: transform 1s cubic-bezier(.34,1.56,.64,1); }
+
+        /* Scrollbar discreta */
+        .thin-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+        .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+        .thin-scroll::-webkit-scrollbar-thumb { background: #d1fae5; border-radius: 3px; }
+        .thin-scroll::-webkit-scrollbar-thumb:hover { background: #a7f3d0; }
+
+        /* Live dot */
+        .live-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: #10b981;
+            animation: live-pulse 2s infinite;
+        }
+        @keyframes live-pulse {
+            0%,100% { box-shadow: 0 0 0 0 rgba(16,185,129,.7); }
+            50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+        }
+    </style>
+</head>
+
+<body class="bg-brand-50 text-gray-800 font-sans antialiased selection:bg-brand-500 selection:text-white">
+
+    <!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+    <nav class="fixed w-full z-[1000] glass shadow-sm transition-all duration-300">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <svg class="w-8 h-8 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    <span class="font-bold text-xl text-brand-900 tracking-tight">RookControl</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#dashboard" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Dashboard</a>
+                    <a href="#torres" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Torres</a>
+                    <a href="#mapa" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Mapa</a>
+                    <a href="#eventos" class="text-gray-600 hover:text-brand-600 font-medium transition-colors">Eventos</a>
+                </div>
+                <div class="hidden md:flex items-center gap-4">
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-100 text-brand-700 text-xs font-semibold">
+                        <div class="live-dot"></div>
+                        <span>MQTT Online</span>
+                    </div>
+                    <div class="mono text-sm font-semibold text-brand-900 tabular-nums" id="clock">--:--:--</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ═══════════════════════ HEADER + KPIs ═══════════════════════ -->
+    <header id="dashboard" class="relative pt-32 pb-8 overflow-hidden">
+        <div class="absolute inset-0 z-0 pointer-events-none">
+            <div class="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-brand-200 opacity-30 blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 -ml-20 w-80 h-80 rounded-full bg-emerald-300 opacity-30 blur-3xl"></div>
+        </div>
+
+        <div class="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 reveal">
+            <div class="text-center mb-10">
+                <span class="inline-block py-1 px-3 rounded-full bg-brand-100 text-brand-700 text-sm font-semibold mb-6 tracking-wide uppercase">
+                    Live Telemetry · RookAll Dashboard
+                </span>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-brand-900 tracking-tight mb-4 leading-tight">
+                    Monitoramento Ambiental <br class="hidden md:block" />
+                    <span class="text-brand-600">em Tempo Real</span>
+                </h1>
+                <p class="max-w-2xl mx-auto text-lg text-gray-600">
+                    Temperatura e umidade das estações RookControl distribuídas via MQTT, com perímetros georreferenciados e failsafes ambientais integrados ao flight controller.
+                </p>
+            </div>
+
+            <!-- KPIs -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Temperatura Máxima</p>
+                    <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-max">--<span class="text-base text-gray-400 ml-1">°C</span></p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                        </svg>
+                    </div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Temperatura Média</p>
+                    <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-avg">--<span class="text-base text-gray-400 ml-1">°C</span></p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                        </svg>
+                    </div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Torres Online</p>
+                    <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-towers">--<span class="text-base text-gray-400 ml-1">/ 6</span></p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl border border-brand-100 shadow-sm hover:shadow-xl transition-all duration-300">
+                    <div class="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center mb-4">
+                        <svg class="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Alertas Ativos</p>
+                    <p class="text-3xl font-extrabold mono text-brand-900" id="kpi-alerts">--</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════ DASHBOARD GRID ═══════════════════════ -->
+    <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 reveal" style="min-height: 640px;">
+
+            <!-- Lista de torres -->
+            <aside id="torres" class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[640px]">
+                <div class="p-5 border-b border-brand-100">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-base font-bold text-brand-900 tracking-tight">Estações</h2>
+                        <span class="mono text-xs font-semibold text-brand-600 bg-brand-50 px-2 py-1 rounded" id="tl-count">0/0</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Ordenadas por temperatura</p>
+                </div>
+                <div class="flex-1 overflow-y-auto thin-scroll p-2" id="tower-list"></div>
+            </aside>
+
+            <!-- Mapa -->
+            <section id="mapa" class="lg:col-span-6 bg-white rounded-2xl border border-brand-100 shadow-xl overflow-hidden h-[640px] relative">
+                <!-- Legenda -->
+                <div class="absolute top-4 left-4 z-[500] bg-brand-900/95 backdrop-blur rounded-xl p-3 border border-brand-700 shadow-lg">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-2">Temperatura °C</p>
+                    <div class="space-y-1.5 text-[11px] mono">
+                        <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#10b981"></div><span>0 – 45</span></div>
+                        <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#f59e0b"></div><span>45 – 50</span></div>
+                        <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#f97316"></div><span>50 – 55</span></div>
+                        <div class="flex items-center gap-2 text-brand-100"><div class="w-3 h-[3px] rounded" style="background:#ef4444"></div><span>55 +</span></div>
+                    </div>
+                </div>
+
+                <!-- Botão fit -->
+                <button id="btn-fit"
+                    class="absolute top-4 right-4 z-[500] bg-brand-900/95 hover:bg-brand-800 backdrop-blur text-white px-3 py-2 rounded-lg text-xs font-semibold border border-brand-700 shadow-lg transition-colors flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                    Ajustar
+                </button>
+
+                <div id="map" class="w-full h-full"></div>
+            </section>
+
+            <!-- Painel de detalhe -->
+            <aside class="lg:col-span-3 bg-white rounded-2xl border border-brand-100 shadow-sm flex flex-col overflow-hidden h-[640px]">
+                <!-- Estado vazio -->
+                <div id="lm-empty" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                    <div class="w-16 h-16 bg-brand-50 rounded-2xl flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-bold text-brand-900 mb-1">Selecione uma torre</h3>
+                    <p class="text-xs text-gray-500 leading-relaxed">Clique em um marcador no mapa ou em um cartão da lista para visualizar os sensores.</p>
+                </div>
+
+                <!-- Conteúdo -->
+                <div id="lm-body" class="flex-1 overflow-y-auto thin-scroll hidden">
+                    <div class="p-5 border-b border-brand-100">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <h2 class="text-base font-bold text-brand-900 leading-tight truncate" id="lm-name">—</h2>
+                                <p class="text-xs text-gray-500 mt-0.5" id="lm-loc">—</p>
+                            </div>
+                            <span class="mono text-[10px] font-bold bg-brand-50 text-brand-700 px-2 py-1 rounded flex-shrink-0" id="lm-id">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Gauge -->
+                    <div class="p-5 border-b border-brand-100 flex flex-col items-center">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Temperatura Ambiente</p>
+                        <svg class="w-full max-w-[240px]" viewBox="0 0 240 240">
+                            <!-- Trilho -->
+                            <path d="M 57.77 182.23 A 88 88 0 1 1 182.23 182.23" stroke="#e5e7eb" stroke-width="14" fill="none" />
+                            <!-- Zonas -->
+                            <path d="M 57.77 182.23 A 88 88 0 0 1 174.87 51.2" stroke="#10b981" stroke-width="14" fill="none" stroke-linecap="round" />
+                            <path d="M 174.87 51.2 A 88 88 0 0 1 194.51 73.17" stroke="#f59e0b" stroke-width="14" fill="none" />
+                            <path d="M 194.51 73.17 A 88 88 0 0 1 205.79 100.42" stroke="#f97316" stroke-width="14" fill="none" />
+                            <path d="M 205.79 100.42 A 88 88 0 0 1 182.23 182.23" stroke="#ef4444" stroke-width="14" fill="none" />
+                            <g id="gauge-ticks"></g>
+                            <g id="gauge-needle" class="gauge-needle">
+                                <line x1="120" y1="120" x2="120" y2="70" stroke="#022c22" stroke-width="3" stroke-linecap="round" />
+                                <circle cx="120" cy="120" r="8" fill="#022c22" stroke="#fff" stroke-width="2" />
+                            </g>
+                            <text x="120" y="178" text-anchor="middle" dominant-baseline="middle" font-family="'JetBrains Mono', monospace">
+                                <tspan id="gauge-val" font-size="38" font-weight="800" fill="#022c22">--</tspan>
+                                <tspan font-size="14" fill="#9ca3af" dx="2">°C</tspan>
+                            </text>
+                        </svg>
+                        <div class="flex gap-6 text-xs text-gray-500 mt-1">
+                            <span>Mín <b class="text-brand-900 mono" id="gauge-min">--</b></span>
+                            <span>Máx <b class="text-brand-900 mono" id="gauge-max">--</b></span>
+                        </div>
+                    </div>
+
+                    <!-- Sensores secundários -->
+                    <div class="p-5 space-y-4 border-b border-brand-100">
+                        <!-- Umidade -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-2 text-gray-500">
+                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                    </svg>
+                                    <span class="text-xs font-medium">Umidade</span>
+                                </div>
+                                <span class="mono text-sm font-bold text-brand-700" id="val-hum">-- <span class="text-[10px] text-gray-400">%</span></span>
+                            </div>
+                            <div class="h-1 bg-gray-100 rounded overflow-hidden">
+                                <div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-hum" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Bateria -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-2 text-gray-500">
+                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    <span class="text-xs font-medium">Bateria</span>
+                                </div>
+                                <span class="mono text-sm font-bold text-brand-700" id="val-bat">-- <span class="text-[10px] text-gray-400">V</span></span>
+                            </div>
+                            <div class="h-1 bg-gray-100 rounded overflow-hidden">
+                                <div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-bat" style="width:0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Sinal -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="flex items-center gap-2 text-gray-500">
+                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                                    </svg>
+                                    <span class="text-xs font-medium">Sinal RF</span>
+                                </div>
+                                <span class="mono text-sm font-bold text-brand-700" id="val-sig">-- <span class="text-[10px] text-gray-400">dBm</span></span>
+                            </div>
+                            <div class="h-1 bg-gray-100 rounded overflow-hidden">
+                                <div class="h-full bg-brand-500 rounded transition-all duration-500" id="bar-sig" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sparkline -->
+                    <div class="p-5 border-b border-brand-100">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Histórico · 60 s</span>
+                            <span class="mono text-[10px] text-gray-400" id="stat-updated">—</span>
+                        </div>
+                        <canvas id="spark-temp" class="w-full h-14"></canvas>
+                    </div>
+
+                    <!-- Perímetro -->
+                    <div class="p-5">
+                        <div class="bg-brand-50 rounded-xl p-3">
+                            <p class="text-[10px] font-bold uppercase tracking-wider text-brand-600 mb-1">Perímetro de Segurança</p>
+                            <p class="mono text-sm font-bold text-brand-900" id="stat-perim">—</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ═══════════════════════ TICKER ═══════════════════════ -->
+        <section id="eventos" class="mt-6 bg-brand-900 rounded-2xl border border-brand-700 overflow-hidden reveal">
+            <div class="flex items-stretch">
+                <div class="bg-brand-950 px-6 py-4 flex items-center gap-3 border-r border-brand-700">
+                    <svg class="w-5 h-5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <div class="text-brand-100">
+                        <p class="text-[10px] font-bold uppercase tracking-wider">Eventos ao Vivo</p>
+                        <p class="text-xs text-brand-400">RookControl · MQTT</p>
+                    </div>
+                </div>
+                <div class="flex-1 px-6 py-4 flex items-center gap-6 overflow-x-auto">
+                    <div class="flex items-center gap-6" id="ticker-feed"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+    <footer class="bg-brand-950 text-brand-300 py-12 border-t border-brand-900">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div class="col-span-2">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                        </svg>
+                        <span class="font-bold text-xl text-white tracking-tight">RookControl</span>
+                    </div>
+                    <p class="text-sm text-brand-400 max-w-sm">
+                        Módulo sensorial de alta precisão para monitoramento ambiental de drones. Integração nativa com Companion Computer ESP32, ArduPilot/PX4 e arquitetura RookAll.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white mb-4">Referências Técnicas</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">ESP-IDF v5.1+</a></li>
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">MAVLink v2.0</a></li>
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">MQTT / TLS</a></li>
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">HMAC-SHA256</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold text-white mb-4">Legal</h4>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">Licença AGPL-3.0</a></li>
+                        <li><a href="#" class="hover:text-brand-500 transition-colors">Política de Segurança</a></li>
+                        <li><span class="text-brand-500">RockNewVenture & Citizen Tech</span></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="border-t border-brand-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-3 text-sm text-brand-500">
+                <p>&copy; 2030 RookControl | Desenvolvido para RockNewVenture & Citizen Tech Global Solution.</p>
+                <p class="mono text-xs">v1.2.0 · AGPL-3.0</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    /* ═══════════════════════════════════════════════════════════════
+       RookControl — Dashboard minimalist · paleta satAMPERV.1
+       ═══════════════════════════════════════════════════════════════ */
+
+    const GAUGE_MIN = 0, GAUGE_MAX = 70, GAUGE_START = 135, GAUGE_SWEEP = 270;
+    const HISTORY_LEN = 40;
+
+    const INITIAL_TOWERS = [
+        { id:'T-01', name:'Torre Norte',      loc:'Brasília, DF',    lat:-15.7942, lng:-47.8825, temperature:29.4, humidity:58.2, battery:12.4, signal:-72, perimeterKm:6.0 },
+        { id:'T-02', name:'Torre Sul',        loc:'São Paulo, SP',   lat:-23.5505, lng:-46.6333, temperature:47.8, humidity:42.0, battery:12.1, signal:-81, perimeterKm:4.5 },
+        { id:'T-03', name:'Estação Amazônia', loc:'Manaus, AM',      lat:-3.1190,  lng:-60.0217, temperature:33.6, humidity:88.5, battery:12.5, signal:-68, perimeterKm:8.0 },
+        { id:'T-04', name:'Estação Nordeste', loc:'Recife, PE',      lat:-8.0476,  lng:-34.8770, temperature:31.2, humidity:76.0, battery:12.2, signal:-84, perimeterKm:5.5 },
+        { id:'T-05', name:'Estação Sul',      loc:'Porto Alegre, RS', lat:-30.0346, lng:-51.2177, temperature:56.1, humidity:61.3, battery:11.2, signal:-92, perimeterKm:5.0 },
+        { id:'T-06', name:'Estação Cerrado',  loc:'Goiânia, GO',      lat:-16.6869, lng:-49.2648, temperature:34.8, humidity:45.0, battery:12.3, signal:-76, perimeterKm:5.5 },
+    ];
+
+    const state = { towers: [], selected: null, history: new Map(), alerts: [], markers: new Map() };
+    const $ = s => document.querySelector(s);
+    const fmt = (n, d=1) => Number(n).toFixed(d);
+
+    function tempStatus(t) {
+        if (t >= 55) return 'critical';
+        if (t >= 50) return 'hot';
+        if (t >= 45) return 'warn';
+        return 'ok';
+    }
+    function tempColor(t) {
+        return { ok:'#10b981', warn:'#f59e0b', hot:'#f97316', critical:'#ef4444' }[tempStatus(t)];
+    }
+    function tempToAngle(v) {
+        const n = (v - GAUGE_MIN) / (GAUGE_MAX - GAUGE_MIN);
+        return GAUGE_START + Math.max(0, Math.min(1, n)) * GAUGE_SWEEP;
+    }
+    function polar(cx, cy, r, a) {
+        const rad = a * Math.PI / 180;
+        return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
+    }
+
+    function buildGaugeTicks() {
+        const g = $('#gauge-ticks');
+        g.innerHTML = '';
+        for (let v = 0; v <= 70; v += 10) {
+            const a = tempToAngle(v);
+            const [x1, y1] = polar(120, 120, 100, a);
+            const [x2, y2] = polar(120, 120, 106, a);
+            const [tx, ty] = polar(120, 120, 118, a);
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+            line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+            line.setAttribute('stroke', '#9ca3af'); line.setAttribute('stroke-width', '2');
+            g.appendChild(line);
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', tx); text.setAttribute('y', ty);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'middle');
+            text.setAttribute('fill', '#9ca3af');
+            text.setAttribute('font-size', '9');
+            text.setAttribute('font-family', "'JetBrains Mono', monospace");
+            text.textContent = v;
+            g.appendChild(text);
+        }
+    }
+
+    function drawSparkline(canvas, data) {
+        if (!canvas || data.length < 2) return;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        const dpr = window.devicePixelRatio || 1;
+        if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+            canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        const pad = 4;
+        const vals = data.map(d => d.temp);
+        const min = Math.min(...vals), max = Math.max(...vals);
+        const range = max - min || 1;
+        const px = i => pad + (i / (vals.length - 1)) * (w - pad * 2);
+        const py = v => pad + (1 - (v - min) / range) * (h - pad * 2);
+        const color = tempColor(vals[vals.length - 1]);
+
+        ctx.beginPath();
+        vals.forEach((v, i) => i === 0 ? ctx.moveTo(px(i), py(v)) : ctx.lineTo(px(i), py(v)));
+        ctx.lineTo(px(vals.length - 1), h - pad);
+        ctx.lineTo(px(0), h - pad);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, color + '55');
+        grad.addColorStop(1, color + '00');
+        ctx.fillStyle = grad; ctx.fill();
+
+        ctx.beginPath();
+        vals.forEach((v, i) => i === 0 ? ctx.moveTo(px(i), py(v)) : ctx.lineTo(px(i), py(v)));
+        ctx.strokeStyle = color; ctx.lineWidth = 1.6; ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(px(vals.length - 1), py(vals[vals.length - 1]), 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+    }
+
+    function markerIcon(tower) {
+        const status = tempStatus(tower.temperature);
+        const cls = status === 'ok' ? '' : status;
+        return L.divIcon({
+            className: '',
+            html: `
+                <div class="tower-marker ${cls}">
+                    <div class="bubble">
+                        <span class="temp">${fmt(tower.temperature, 1)}</span>
+                        <span class="deg">°</span>
+                    </div>
+                    <div class="pointer"></div>
+                </div>`,
+            iconSize: [56, 44],
+            iconAnchor: [28, 44]
+        });
+    }
+    function updateMarker(tower) {
+        const m = state.markers.get(tower.id);
+        if (m) m.setIcon(markerIcon(tower));
+    }
+
+    function renderTowerList() {
+        const body = $('#tower-list');
+        body.innerHTML = '';
+        const sorted = [...state.towers].sort((a, b) => b.temperature - a.temperature);
+        for (const t of sorted) {
+            const status = tempStatus(t.temperature);
+            const color = tempColor(t.temperature);
+            const pct = (t.temperature / 70) * 100;
+            const selected = state.selected === t.id;
+            const badgeClasses = {
+                ok: 'bg-brand-50 text-brand-700',
+                warn: 'bg-amber-50 text-amber-700',
+                hot: 'bg-orange-50 text-orange-700',
+                critical: 'bg-red-50 text-red-700'
+            };
+            const card = document.createElement('div');
+            card.className = `p-3 mb-2 rounded-xl border cursor-pointer transition-all duration-200 ${
+                selected ? 'bg-brand-50 border-brand-500 shadow-sm' : 'bg-white border-brand-100 hover:border-brand-300 hover:bg-brand-50/40'
+            }`;
+            card.onclick = () => selectTower(t.id);
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2 gap-2">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-gray-900 truncate">${t.name}</p>
+                        <p class="mono text-[10px] text-gray-500">${t.id} · ${t.loc}</p>
+                    </div>
+                    <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeClasses[status]} flex-shrink-0">${status}</span>
+                </div>
+                <div class="flex items-baseline gap-1 mb-2">
+                    <span class="text-2xl font-extrabold mono" style="color:${color}">${fmt(t.temperature,1)}</span>
+                    <span class="text-xs text-gray-400">°C</span>
+                </div>
+                <div class="h-1 bg-gray-100 rounded overflow-hidden mb-2">
+                    <div class="h-full rounded transition-all duration-500" style="width:${pct}%; background:${color}"></div>
+                </div>
+                <div class="flex gap-3 mono text-[10px] text-gray-500">
+                    <span>${fmt(t.humidity,0)}%</span>
+                    <span>${fmt(t.battery,2)}V</span>
+                    <span>${t.signal} dBm</span>
+                </div>`;
+            body.appendChild(card);
+        }
+        $('#tl-count').textContent = `${state.towers.length}/${state.towers.length}`;
+    }
+
+    function selectTower(id) {
+        state.selected = id;
+        const t = state.towers.find(x => x.id === id);
+        if (!t) return;
+        $('#lm-empty').classList.add('hidden');
+        $('#lm-body').classList.remove('hidden');
+        $('#lm-name').textContent = t.name;
+        $('#lm-loc').textContent = t.loc;
+        $('#lm-id').textContent = t.id;
+        map.flyTo([t.lat, t.lng], Math.max(map.getZoom(), 6), { duration: .6 });
+        updateDetailPanel();
+        renderTowerList();
+    }
+
+    function updateDetailPanel() {
+        const t = state.towers.find(x => x.id === state.selected);
+        if (!t) return;
+        const hist = state.history.get(t.id) || [];
+
+        const angle = tempToAngle(t.temperature);
+        $('#gauge-needle').style.transform = `rotate(${angle - 270}deg)`;
+        const gv = $('#gauge-val');
+        gv.textContent = fmt(t.temperature, 1);
+        gv.setAttribute('fill', tempStatus(t.temperature) === 'ok' ? '#022c22' : tempColor(t.temperature));
+
+        if (hist.length) {
+            const v = hist.map(h => h.temp);
+            $('#gauge-min').textContent = fmt(Math.min(...v), 1) + '°';
+            $('#gauge-max').textContent = fmt(Math.max(...v), 1) + '°';
+        }
+
+        $('#val-hum').innerHTML = `${fmt(t.humidity,1)} <span class="text-[10px] text-gray-400">%</span>`;
+        $('#bar-hum').style.width = Math.max(0, Math.min(100, t.humidity)) + '%';
+
+        const batPct = Math.max(0, Math.min(100, ((t.battery - 10.5) / (12.6 - 10.5)) * 100));
+        const batColor = t.battery < 11.0 ? '#ef4444' : t.battery < 11.4 ? '#f59e0b' : '#10b981';
+        $('#val-bat').innerHTML = `${fmt(t.battery,2)} <span class="text-[10px] text-gray-400">V</span>`;
+        $('#bar-bat').style.width = batPct + '%';
+        $('#bar-bat').style.background = batColor;
+
+        const sigPct = Math.max(0, Math.min(100, (Math.abs(t.signal) - 50) / 70 * 100));
+        const sigColor = t.signal < -100 ? '#ef4444' : t.signal < -90 ? '#f59e0b' : '#10b981';
+        $('#val-sig').innerHTML = `−${Math.abs(t.signal)} <span class="text-[10px] text-gray-400">dBm</span>`;
+        $('#bar-sig').style.width = sigPct + '%';
+        $('#bar-sig').style.background = sigColor;
+
+        drawSparkline($('#spark-temp'), hist);
+        $('#stat-perim').textContent = t.perimeterKm ? fmt(t.perimeterKm,1) + ' km' : '—';
+        $('#stat-updated').textContent = new Date().toLocaleTimeString('pt-BR');
+    }
+
+    function updateKPIs() {
+        const temps = state.towers.map(t => t.temperature);
+        const max = Math.max(...temps);
+        const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+        const maxEl = $('#kpi-max'), avgEl = $('#kpi-avg');
+        maxEl.innerHTML = `${fmt(max,1)}<span class="text-base text-gray-400 ml-1">°C</span>`;
+        maxEl.style.color = tempStatus(max) === 'ok' ? '#022c22' : tempColor(max);
+        avgEl.innerHTML = `${fmt(avg,1)}<span class="text-base text-gray-400 ml-1">°C</span>`;
+        avgEl.style.color = tempStatus(avg) === 'ok' ? '#022c22' : tempColor(avg);
+
+        $('#kpi-towers').innerHTML = `${state.towers.length}<span class="text-base text-gray-400 ml-1">/ ${state.towers.length}</span>`;
+        const active = state.towers.filter(t => ['warn','hot','critical'].includes(tempStatus(t.temperature))).length;
+        const al = $('#kpi-alerts');
+        al.textContent = active;
+        al.style.color = active > 0 ? '#ef4444' : '#022c22';
+    }
+
+    function pushAlert(tower, msg, level = 'info') {
+        state.alerts.unshift({ towerName: tower.name, msg, level, time: new Date() });
+        if (state.alerts.length > 20) state.alerts.pop();
+        renderTicker();
+    }
+    function renderTicker() {
+        const feed = $('#ticker-feed');
+        feed.innerHTML = '';
+        const items = state.alerts.slice(0, 4);
+        if (!items.length) {
+            feed.innerHTML = '<span class="text-xs text-brand-400 italic">Aguardando eventos do broker…</span>';
+            return;
+        }
+        const colorMap = { info: 'text-brand-300', warn: 'text-amber-400', hot: 'text-orange-400', critical: 'text-red-400' };
+        for (const a of items) {
+            const el = document.createElement('div');
+            el.className = 'flex items-center gap-2 whitespace-nowrap';
+            el.innerHTML = `
+                <span class="mono text-[10px] text-brand-500">${a.time.toLocaleTimeString('pt-BR')}</span>
+                <span class="text-xs ${colorMap[a.level] || 'text-brand-200'}"><b class="text-white">${a.towerName}</b> · ${a.msg}</span>`;
+            feed.appendChild(el);
+        }
+    }
+
+    function simulate() {
+        for (const t of state.towers) {
+            const prev = tempStatus(t.temperature);
+            t.temperature += (Math.random() - .48) * .4;
+            t.temperature = Math.max(-5, Math.min(70, t.temperature));
+            if (Math.random() < .015) t.temperature += 3 + Math.random() * 4;
+            if (Math.random() < .02 && t.temperature > 50) t.temperature -= 2;
+
+            t.humidity = Math.max(5, Math.min(98, t.humidity + (Math.random() - .5) * .8));
+            t.battery = Math.max(10.5, Math.min(12.6, t.battery + (Math.random() - .52) * .02));
+            t.signal = Math.max(-110, Math.min(-55, t.signal + Math.round((Math.random() - .5) * 2)));
+
+            const hist = state.history.get(t.id) || [];
+            hist.push({ t: Date.now(), temp: t.temperature });
+            if (hist.length > HISTORY_LEN) hist.shift();
+            state.history.set(t.id, hist);
+
+            updateMarker(t);
+
+            const next = tempStatus(t.temperature);
+            if (next !== prev) {
+                if (next === 'critical') pushAlert(t, `Temperatura crítica ${fmt(t.temperature,1)}°C`, 'critical');
+                else if (next === 'hot' || next === 'warn') pushAlert(t, `Temperatura elevada ${fmt(t.temperature,1)}°C`, 'warn');
+                else pushAlert(t, 'Temperatura normalizada', 'info');
+            }
+        }
+        renderTowerList();
+        updateKPIs();
+        if (state.selected) updateDetailPanel();
+    }
+
+    function updateClock() { $('#clock').textContent = new Date().toLocaleTimeString('pt-BR'); }
+    setInterval(updateClock, 1000); updateClock();
+
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([-15, -50], 4);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18, subdomains: 'abcd' }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    $('#btn-fit').onclick = () => {
+        const bounds = L.latLngBounds(state.towers.map(t => [t.lat, t.lng]));
+        map.fitBounds(bounds, { padding: [60, 60] });
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('active'); observer.unobserve(e.target); } });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    function init() {
+        state.towers = INITIAL_TOWERS.map(t => ({ ...t }));
+
+        for (const t of state.towers) {
+            const hist = [];
+            let v = t.temperature;
+            for (let i = 0; i < HISTORY_LEN; i++) {
+                v += (Math.random() - .5) * .3;
+                hist.push({ t: Date.now() - (HISTORY_LEN - i) * 1500, temp: v });
+            }
+            state.history.set(t.id, hist);
+        }
+
+        for (const t of state.towers) {
+            const m = L.marker([t.lat, t.lng], { icon: markerIcon(t) }).addTo(map);
+            m.on('click', () => selectTower(t.id));
+            state.markers.set(t.id, m);
+        }
+
+        buildGaugeTicks();
+        renderTowerList();
+        updateKPIs();
+        renderTicker();
+
+        const bounds = L.latLngBounds(state.towers.map(t => [t.lat, t.lng]));
+        map.fitBounds(bounds, { padding: [60, 60] });
+
+        selectTower(state.towers[0].id);
+        setInterval(simulate, 1500);
+    }
+
+    init();
+    </script>
+</body>
+
+</html>
