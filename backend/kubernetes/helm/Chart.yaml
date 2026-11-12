@@ -1,0 +1,67 @@
+apiVersion: v2
+name: satamperv-backend
+version: 1.0.0
+appVersion: 1.0.0
+description: satAMPERV.1 Backend - Cloud infrastructure for 10K+ devices
+home: https://github.com/kauecodify/satAMPERV.1
+type: application
+
+maintainers:
+  - name: satAMPERV.1 Team
+    email: engineering@satamperv.com
+
+dependencies:
+  - name: emqx
+    version: 5.0.0
+    repository: https://repos.emqx.io/charts
+    condition: emqx.enabled
+  
+  - name: nats
+    version: 0.18.0
+    repository: https://nats-io.github.io/k8s/helm/charts
+    condition: nats.enabled
+  
+  - name: timescaledb
+    version: 0.10.0
+    repository: https://charts.timescale.com
+    condition: timescaledb.enabled
+  
+  - name: postgres
+    version: 12.1.0
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgres.enabled
+  
+  - name: minio
+    version: 12.7.0
+    repository: https://charts.min.io/
+    condition: minio.enabled
+  
+  - name: kong
+    version: 2.26.0
+    repository: https://charts.konghq.com
+    condition: kong.enabled
+  
+  - name: flink
+    version: 1.0.0
+    repository: https://downloads.apache.org/flink/flink-kubernetes-operator-1.7.0/
+    condition: flink.enabled
+  
+  - name: prometheus
+    version: 15.18.0
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+  
+  - name: grafana
+    version: 6.58.0
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled
+  
+  - name: loki
+    version: 5.41.0
+    repository: https://grafana.github.io/helm-charts
+    condition: loki.enabled
+  
+  - name: jaeger
+    version: 0.67.0
+    repository: https://jaegertracing.github.io/helm-charts
+    condition: jaeger.enabled

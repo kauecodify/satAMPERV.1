@@ -1,0 +1,24 @@
+# satAMPERV.1 Flink Job - Dockerfile
+# Apache Flink with custom job for telemetry processing
+
+FROM flink:1.18-scala_2.12-java11
+
+# Create directories
+RUN mkdir -p /opt/satamperv/jobs /opt/satamperv/config
+
+# Copy job JAR
+COPY target/satamperv-flink-job-*.jar /opt/satamperv/jobs/
+
+# Copy configuration
+COPY flink-config.yaml /opt/satamperv/config/
+
+# Set environment variables
+ENV FLINK_JOB_JAR=/opt/satamperv/jobs/satamperv-flink-job.jar
+ENV FLINK_CONFIG_DIR=/opt/satamperv/config
+
+# Expose Flink ports
+EXPOSE 8081 6123
+
+# Entrypoint - run the Flink job
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["standalone-job", "--job-classname", "com.satamperv.TelemetryProcessingJob"]

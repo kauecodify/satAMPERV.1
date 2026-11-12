@@ -1,0 +1,227 @@
+groups:
+  - name: satamperv-critical
+    rules:
+      # System Critical Alerts
+      - alert: HighCPUUsage
+        expr: (sum(rate(container_cpu_usage_seconds_total{namespace=~"production|monitoring"}[5m])) by (namespace) / sum(container_spec_cpu_quota{namespace=~"production|monitoring"} / container_spec_cpu_period{namespace=~"production|monitoring"}) by (namespace)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "High CPU usage in namespace {{ $labels.namespace }}"
+          description: "CPU usage is {{ $value }}% (threshold: 90%)"
+
+      - alert: HighMemoryUsage
+        expr: (sum(container_memory_working_set_bytes{namespace=~"production|monitoring"}) by (namespace) / sum(container_spec_memory_limit_bytes{namespace=~"production|monitoring"}) by (namespace)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "High memory usage in namespace {{ $labels.namespace }}"
+          description: "Memory usage is {{ $value }}% (threshold: 90%)"
+
+      - alert: PodCrashLoopBackOff
+        expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} > 0
+        for: 5m
+        labels:
+          severity: critical
+          category: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.pod }} in CrashLoopBackOff"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is in CrashLoopBackOff state"
+
+      - alert: PodNotRunning
+        expr: kube_pod_status_phase{phase!="Running",phase!="Succeeded"} > 0
+        for: 10m
+        labels:
+          severity: critical
+          category: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.pod }} is not running"
+          description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is in {{ $labels.phase }} state"
+
+      - alert: NodeNotReady
+        expr: kube_node_status_condition{condition="Ready",status="false"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          category: kubernetes
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
+          description: "Node {{ $labels.node }} has been unready for more than 5 minutes"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk space is {{ $value }}% available (threshold: 10%)"
+
+      # satAMPERV.1 Critical Alerts
+      - alert: MQTTBrokerDown
+        expr: up{job="emqx"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: satamperv
+        annotations:
+          summary: "MQTT Broker is down"
+          description: "EMQX MQTT broker has been down for more than 2 minutes"
+
+      - alert: DatabaseDown
+        expr: up{job=~"timescaledb|postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: satamperv
+        annotations:
+          summary: "Database {{ $labels.job }} is down"
+          description: "Database {{ $labels.job }} has been down for more than 2 minutes"
+
+      - alert: FlinkJobFailed
+        expr: flink_job_status{status="FAILED"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          category: satamperv
+        annotations:
+          summary: "Flink job {{ $labels.job_id }} failed"
+          description: "Flink job {{ $labels.job_id }} has been in FAILED state for more than 5 minutes"
+
+      - alert: HighMessageLatency
+        expr: rate(flink_latency_sum[5m]) / rate(flink_latency_count[5m]) > 500
+        for: 5m
+        labels:
+          severity: critical
+          category: satamperv
+        annotations:
+          summary: "High message processing latency"
+          description: "Message processing latency is {{ $value }}ms (threshold: 500ms)"
+
+  - name: satamperv-warning
+    rules:
+      # System Warning Alerts
+      - alert: MediumCPUUsage
+        expr: (sum(rate(container_cpu_usage_seconds_total{namespace=~"production|monitoring"}[5m])) by (namespace) / sum(container_spec_cpu_quota{namespace=~"production|monitoring"} / container_spec_cpu_period{namespace=~"production|monitoring"}) by (namespace)) * 100 > 70
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "Medium CPU usage in namespace {{ $labels.namespace }}"
+          description: "CPU usage is {{ $value }}% (threshold: 70%)"
+
+      - alert: MediumMemoryUsage
+        expr: (sum(container_memory_working_set_bytes{namespace=~"production|monitoring"}) by (namespace) / sum(container_spec_memory_limit_bytes{namespace=~"production|monitoring"}) by (namespace)) * 100 > 70
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "Medium memory usage in namespace {{ $labels.namespace }}"
+          description: "Memory usage is {{ $value }}% (threshold: 70%)"
+
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+        for: 10m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "Disk space warning on {{ $labels.instance }}"
+          description: "Disk space is {{ $value }}% available (threshold: 20%)"
+
+      # satAMPERV.1 Warning Alerts
+      - alert: MQTTHighConnections
+        expr: emqx_connections_count > 10000
+        for: 5m
+        labels:
+          severity: warning
+          category: satamperv
+        annotations:
+          summary: "High MQTT connections"
+          description: "MQTT connections count is {{ $value }} (threshold: 10000)"
+
+      - alert: HighMessageRate
+        expr: rate(emqx_messages_received_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: satamperv
+        annotations:
+          summary: "High message rate"
+          description: "Message rate is {{ $value }} messages/second (threshold: 1000)"
+
+      - alert: DatabaseHighConnections
+        expr: pg_stat_activity_count > 500
+        for: 5m
+        labels:
+          severity: warning
+          category: satamperv
+        annotations:
+          summary: "High database connections"
+          description: "Database connections count is {{ $value }} (threshold: 500)"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: satamperv
+        annotations:
+          summary: "High error rate"
+          description: "Error rate is {{ $value }}% (threshold: 10%)"
+
+      - alert: SatelliteFallbackHigh
+        expr: rate(satamperv_satellite_messages_total[5m]) / rate(satamperv_messages_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          category: satamperv
+        annotations:
+          summary: "High satellite fallback rate"
+          description: "Satellite fallback rate is {{ $value }}% (threshold: 10%)"
+
+  - name: satamperv-info
+    rules:
+      # Informational Alerts
+      - alert: NewDeviceRegistered
+        expr: increase(satamperv_devices_registered_total[5m]) > 0
+        labels:
+          severity: info
+          category: satamperv
+        annotations:
+          summary: "New device registered"
+          description: "{{ $value }} new device(s) registered in the last 5 minutes"
+
+      - alert: FirmwareUpdateAvailable
+        expr: satamperv_firmware_latest_version != satamperv_firmware_current_version
+        labels:
+          severity: info
+          category: satamperv
+        annotations:
+          summary: "Firmware update available"
+          description: "Latest firmware version: {{ $labels.latest_version }}, Current: {{ $labels.current_version }}"
+
+      - alert: GovernanceProposalCreated
+        expr: increase(satamperv_governance_proposals_total[5m]) > 0
+        labels:
+          severity: info
+          category: satamperv
+        annotations:
+          summary: "New governance proposal created"
+          description: "{{ $value }} new governance proposal(s) created in the last 5 minutes"
+
+      - alert: GovernanceDecisionMade
+        expr: increase(satamperv_governance_decisions_total[5m]) > 0
+        labels:
+          severity: info
+          category: satamperv
+        annotations:
+          summary: "Governance decision made"
+          description: "{{ $value }} governance decision(s) made in the last 5 minutes"

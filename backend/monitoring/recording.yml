@@ -1,0 +1,123 @@
+groups:
+  - name: satamperv-recording
+    interval: 1m
+    rules:
+      # Device Metrics
+      - record: satamperv:devices:active
+        expr: count(satamperv_device_last_seen_timestamp > (time() - 3600))
+
+      - record: satamperv:devices:total
+        expr: count(satamperv_device_info)
+
+      - record: satamperv:devices:by_region
+        expr: count(satamperv_device_last_seen_timestamp > (time() - 3600)) by (region)
+
+      - record: satamperv:devices:by_firmware
+        expr: count(satamperv_device_info) by (firmware_version)
+
+      # Message Metrics
+      - record: satamperv:messages:total
+        expr: increase(satamperv_messages_total[1h])
+
+      - record: satamperv:messages:by_connectivity
+        expr: increase(satamperv_messages_total[1h]) by (connectivity_type)
+
+      - record: satamperv:messages:wifi
+        expr: increase(satamperv_messages_total{connectivity_type="wifi"}[1h])
+
+      - record: satamperv:messages:satellite
+        expr: increase(satamperv_messages_total{connectivity_type="satellite"}[1h])
+
+      - record: satamperv:satellite:ratio
+        expr: satamperv:messages:satellite / satamperv:messages:total
+
+      # Telemetry Metrics
+      - record: satamperv:telemetry:voltage_avg
+        expr: avg(satamperv_telemetry_voltage)
+
+      - record: satamperv:telemetry:voltage_min
+        expr: min(satamperv_telemetry_voltage)
+
+      - record: satamperv:telemetry:voltage_max
+        expr: max(satamperv_telemetry_voltage)
+
+      - record: satamperv:telemetry:current_avg
+        expr: avg(satamperv_telemetry_current)
+
+      - record: satamperv:telemetry:power_avg
+        expr: avg(satamperv_telemetry_power)
+
+      - record: satamperv:telemetry:temperature_avg
+        expr: avg(satamperv_telemetry_temperature)
+
+      # Alert Metrics
+      - record: satamperv:alerts:total
+        expr: count(satamperv_alerts_total)
+
+      - record: satamperv:alerts:by_severity
+        expr: count(satamperv_alerts_total) by (severity)
+
+      - record: satamperv:alerts:by_type
+        expr: count(satamperv_alerts_total) by (alert_type)
+
+      # Governance Metrics
+      - record: satamperv:governance:proposals_total
+        expr: count(satamperv_governance_proposals)
+
+      - record: satamperv:governance:proposals_active
+        expr: count(satamperv_governance_proposals{status="active"})
+
+      - record: satamperv:governance:votes_total
+        expr: count(satamperv_governance_votes)
+
+      - record: satamperv:governance:votes_by_proposal
+        expr: count(satamperv_governance_votes) by (proposal_id)
+
+      - record: satamperv:governance:decisions_total
+        expr: count(satamperv_governance_decisions)
+
+      # System Metrics
+      - record: satamperv:system:cpu_usage
+        expr: (sum(rate(container_cpu_usage_seconds_total{namespace="production"}[5m])) by (namespace) / sum(container_spec_cpu_quota{namespace="production"} / container_spec_cpu_period{namespace="production"}) by (namespace)) * 100
+
+      - record: satamperv:system:memory_usage
+        expr: (sum(container_memory_working_set_bytes{namespace="production"}) by (namespace) / sum(container_spec_memory_limit_bytes{namespace="production"}) by (namespace)) * 100
+
+      - record: satamperv:system:pods_total
+        expr: count(kube_pod_status_phase{namespace="production"})
+
+      - record: satamperv:system:pods_running
+        expr: count(kube_pod_status_phase{namespace="production",phase="Running"})
+
+      # Database Metrics
+      - record: satamperv:database:timescaledb:size
+        expr: pg_database_size_bytes{datname="telemetry"}
+
+      - record: satamperv:database:postgres:size
+        expr: pg_database_size_bytes{datname="satamperv"}
+
+      - record: satamperv:database:connections
+        expr: pg_stat_activity_count
+
+      # MQTT Metrics
+      - record: satamperv:mqtt:connections
+        expr: emqx_connections_count
+
+      - record: satamperv:mqtt:messages_received
+        expr: rate(emqx_messages_received_total[5m])
+
+      - record: satamperv:mqtt:messages_published
+        expr: rate(emqx_messages_published_total[5m])
+
+      # API Metrics
+      - record: satamperv:api:requests_total
+        expr: rate(http_requests_total[5m])
+
+      - record: satamperv:api:requests_by_endpoint
+        expr: rate(http_requests_total[5m]) by (endpoint)
+
+      - record: satamperv:api:latency_avg
+        expr: avg(rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]))
+
+      - record: satamperv:api:latency_p99
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))

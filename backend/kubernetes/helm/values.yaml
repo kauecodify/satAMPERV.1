@@ -1,0 +1,398 @@
+# satAMPERV.1 Backend - Helm Values
+# Configuration for production deployment
+
+# Global settings
+global:
+  region: sa-east-1
+  environment: production
+  domain: satamperv.com
+  
+# Ingestion Layer
+emqx:
+  enabled: true
+  replicaCount: 3
+  
+  service:
+    type: LoadBalancer
+    ports:
+      mqtt: 1883
+      mqttssl: 8883
+      ws: 8083
+      wss: 8084
+  
+  config:
+    EMQX_NODE__NAME: "emqx@${HOSTNAME}"
+    EMQX_CLUSTER__DISCOVERY: "k8s"
+    EMQX_LISTENER__TCP__EXTERNAL: "1883"
+    EMQX_LISTENER__SSL__EXTERNAL: "8883"
+    EMQX_LISTENER__WS__EXTERNAL: "8083"
+    EMQX_LISTENER__WSS__EXTERNAL: "8084"
+    EMQX_AUTH__JWT__SECRET: "${EMQX_JWT_SECRET}"
+    EMQX_AUTH__JWT__VERIFY_CLAIMS: "exp:true"
+  
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+nats:
+  enabled: true
+  replicaCount: 3
+  
+  nats:
+    jetstream:
+      enabled: true
+      memStorage: true
+      fileStorage: true
+      fileStorageSize: 10Gi
+  
+  service:
+    type: ClusterIP
+    ports:
+      nats: 4222
+      natsTLS: 4223
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+kong:
+  enabled: true
+  replicaCount: 3
+  
+  admin:
+    enabled: true
+    service:
+      type: LoadBalancer
+  
+  proxy:
+    service:
+      type: LoadBalancer
+      http:
+        enabled: true
+        port: 80
+      https:
+        enabled: true
+        port: 443
+  
+  env:
+    KONG_DATABASE: "postgres"
+    KONG_PG_HOST: "postgres-postgresql"
+    KONG_PG_USER: "kong"
+    KONG_PG_PASSWORD: "${KONG_PG_PASSWORD}"
+    KONG_PROXY_ACCESS_LOG: "/dev/stdout"
+    KONG_ADMIN_ACCESS_LOG: "/dev/stdout"
+    KONG_PROXY_ERROR_LOG: "/dev/stderr"
+    KONG_ADMIN_ERROR_LOG: "/dev/stderr"
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# Processing Layer
+governance:
+  enabled: true
+  replicaCount: 3
+  
+  image:
+    repository: ghcr.io/kauecodify/satamperv-governance
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 8082
+  
+  env:
+    GOVERNANCE_DB_HOST: "postgres-postgresql"
+    GOVERNANCE_DB_PORT: "5432"
+    GOVERNANCE_DB_NAME: "governance"
+    GOVERNANCE_DB_USER: "governance"
+    GOVERNANCE_DB_PASSWORD: "${GOVERNANCE_DB_PASSWORD}"
+    GOVERNANCE_REDIS_HOST: "redis-master"
+    GOVERNANCE_REDIS_PORT: "6379"
+    GOVERNANCE_MQTT_BROKER: "emqx:1883"
+    GOVERNANCE_JWT_SECRET: "${GOVERNANCE_JWT_SECRET}"
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+
+flink:
+  enabled: true
+  
+  jobmanager:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+  
+  taskmanager:
+    replicaCount: 10
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 2Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+  
+  job:
+    jarFile: "/opt/satamperv/jobs/satamperv-flink-job.jar"
+    parallelism: 100
+    checkpointInterval: 10000
+    checkpointTimeout: 60000
+    stateBackend: "rocksdb"
+    savepoints:
+      enabled: true
+      interval: 300000  # 5 minutes
+
+# Storage Layer
+timescaledb:
+  enabled: true
+  replicaCount: 2
+  
+  auth:
+    username: "timescale"
+    password: "${TIMESCALEDB_PASSWORD}"
+    database: "telemetry"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+  
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+
+postgres:
+  enabled: true
+  architecture: replication
+  
+  primary:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+  
+  readReplicas:
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+  
+  auth:
+    username: "satamperv"
+    password: "${POSTGRES_PASSWORD}"
+    database: "satamperv"
+
+minio:
+  enabled: true
+  replicaCount: 4
+  
+  mode: distributed
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+  
+  accessKey: "${MINIO_ACCESS_KEY}"
+  secretKey: "${MINIO_SECRET_KEY}"
+  
+  buckets:
+    - name: firmware
+      policy: none
+      purge: false
+    - name: logs
+      policy: none
+      purge: false
+    - name: backups
+      policy: none
+      purge: false
+    - name: exports
+      policy: none
+      purge: false
+    - name: documents
+      policy: none
+      purge: false
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# Observability
+prometheus:
+  enabled: true
+  replicaCount: 2
+  
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+  
+  alertmanager:
+    enabled: true
+    replicaCount: 2
+
+grafana:
+  enabled: true
+  replicaCount: 2
+  
+  persistence:
+    enabled: true
+    size: 10Gi
+  
+  adminPassword: "${GRAFANA_ADMIN_PASSWORD}"
+  
+  datasources:
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-server
+      access: proxy
+    - name: Loki
+      type: loki
+      url: http://loki
+      access: proxy
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+loki:
+  enabled: true
+  replicaCount: 3
+  
+  persistence:
+    enabled: true
+    size: 50Gi
+  
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+
+jaeger:
+  enabled: true
+  replicaCount: 3
+  
+  storage:
+    type: elasticsearch
+    options:
+      es:
+        server-urls: "http://elasticsearch-master:9200"
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# Network Configuration
+network:
+  ingress:
+    enabled: true
+    className: traefik
+    hosts:
+      - host: api.${global.domain}
+        paths:
+          - path: /
+            pathType: Prefix
+            service:
+              name: kong-proxy
+              port: 80
+      - host: dashboard.${global.domain}
+        paths:
+          - path: /
+            pathType: Prefix
+            service:
+              name: grafana
+              port: 3000
+    tls:
+      - secretName: satamperv-tls
+        hosts:
+          - api.${global.domain}
+          - dashboard.${global.domain}
+
+# Resource Limits
+autoscaling:
+  enabled: true
+  
+  # Horizontal Pod Autoscaler settings
+  hpa:
+    cpuTarget: 70
+    memoryTarget: 80
+    minReplicas: 2
+    maxReplicas: 20

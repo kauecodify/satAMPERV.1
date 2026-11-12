@@ -1,0 +1,26 @@
+# Governance Engine Configuration
+server_port: "8082"
+
+# Database Configuration
+database_url: "postgresql://governance:governance-password@postgres-postgresql:5432/governance?sslmode=disable"
+
+# Redis Configuration
+redis_url: "redis://redis-master:6379/0"
+
+# MQTT Configuration
+mqtt_broker: "emqx:1883"
+mqtt_client_id: "governance-engine"
+
+# JWT Configuration
+jwt_secret: "change-me-in-production-use-strong-secret"
+
+# Governance Settings
+consensus_threshold: 0.67  # 67% for critical decisions
+vote_expiration: 24h        # Votes expire after 24 hours
+proposal_expiration: 168h   # Proposals expire after 7 days (168 hours)
+min_quorum: 0.51            # Minimum quorum of 51%
+min_regions: 3             # Votes must come from at least 3 regions
+
+# Logging
+log_level: "info"
+log_format: "json"

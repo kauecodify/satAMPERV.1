@@ -1,0 +1,40 @@
+# satAMPERV.1 Governance Engine - Multi-stage Dockerfile
+# Builds the distributed governance service
+
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Build with race detector disabled for production
+RUN CGO_ENABLED=0 GOOS=linux go build -o /satamperv-governance -ldflags="-w -s" ./cmd/governance
+
+# Production stage
+FROM alpine:3.18
+
+RUN apk add --no-cache ca-certificates tzdata
+
+# Create non-root user
+RUN adduser -D -u 1000 satamperv
+
+COPY --from=builder --chown=satamperv:satamperv /satamperv-governance /usr/local/bin/
+COPY --chown=satamperv:satamperv config.yaml /etc/satamperv/
+
+WORKDIR /usr/local/bin
+
+USER satamperv
+
+EXPOSE 8082
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/satamperv-governance"]
+CMD ["serve"]

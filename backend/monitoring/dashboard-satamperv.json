@@ -1,0 +1,309 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": null,
+    "title": "satAMPERV.1 - Overview",
+    "tags": ["satamperv", "iot", "energy", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 37,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "type": "stat",
+        "title": "Active Devices",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "satamperv:devices:active",
+            "legendFormat": "Active"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "text": {
+            "valueSize": 40
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Total Messages (1h)",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "satamperv:messages:total",
+            "legendFormat": "Messages"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Satellite Ratio",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "satamperv:satellite:ratio * 100",
+            "legendFormat": "%"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "text": {
+            "suffix": "%"
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "System Health",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "up{job=~\"emqx|timescaledb|postgres|governance|api\"}",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Messages by Connectivity Type",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "satamperv:messages:by_connectivity",
+            "legendFormat": "{{connectivity_type}}"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "single",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Devices by Region",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "satamperv:devices:by_region",
+            "legendFormat": "{{region}}"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Telemetry - Voltage",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "satamperv:telemetry:voltage_avg",
+            "legendFormat": "Average"
+          },
+          {
+            "expr": "satamperv:telemetry:voltage_min",
+            "legendFormat": "Minimum"
+          },
+          {
+            "expr": "satamperv:telemetry:voltage_max",
+            "legendFormat": "Maximum"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Telemetry - Power",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+        "targets": [
+          {
+            "expr": "satamperv:telemetry:power_avg",
+            "legendFormat": "Power (kW)"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Telemetry - Temperature",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
+        "targets": [
+          {
+            "expr": "satamperv:telemetry:temperature_avg",
+            "legendFormat": "Temperature (C)"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "System Resource Usage",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "satamperv:system:cpu_usage",
+            "legendFormat": "CPU %"
+          },
+          {
+            "expr": "satamperv:system:memory_usage",
+            "legendFormat": "Memory %"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "MQTT Metrics",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "expr": "satamperv:mqtt:connections",
+            "legendFormat": "Connections"
+          },
+          {
+            "expr": "satamperv:mqtt:messages_received",
+            "legendFormat": "Messages Received"
+          },
+          {
+            "expr": "satamperv:mqtt:messages_published",
+            "legendFormat": "Messages Published"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Governance Activity",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "satamperv:governance:proposals_total",
+            "legendFormat": "Total Proposals"
+          },
+          {
+            "expr": "satamperv:governance:proposals_active",
+            "legendFormat": "Active Proposals"
+          },
+          {
+            "expr": "satamperv:governance:decisions_total",
+            "legendFormat": "Decisions Made"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      },
+      {
+        "type": "timeseries",
+        "title": "Alerts by Severity",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "satamperv:alerts:by_severity",
+            "legendFormat": "{{severity}}"
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "table",
+            "placement": "bottom"
+          }
+        }
+      }
+    ],
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "30s",
+    "schemaVersion": 37,
+    "style": "dark",
+    "tags": ["satamperv"],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "",
+    "title": "satAMPERV.1 - Overview",
+    "uid": "satamperv-overview",
+    "version": 1,
+    "weekStart": ""
+  }
+}
